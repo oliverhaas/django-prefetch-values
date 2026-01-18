@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+    <url>
+         <loc>https://oliverhaas.github.io/django-prefetch-values/dev/</loc>
+         <lastmod>2026-01-18</lastmod>
+    </url>
+    <url>
+         <loc>https://oliverhaas.github.io/django-prefetch-values/dev/getting-started/installation/</loc>
+         <lastmod>2026-01-18</lastmod>
+    </url>
+    <url>
+         <loc>https://oliverhaas.github.io/django-prefetch-values/dev/getting-started/quickstart/</loc>
+         <lastmod>2026-01-18</lastmod>
+    </url>
+    <url>
+         <loc>https://oliverhaas.github.io/django-prefetch-values/dev/guide/django-ninja/</loc>
+         <lastmod>2026-01-18</lastmod>
+    </url>
+    <url>
+         <loc>https://oliverhaas.github.io/django-prefetch-values/dev/reference/api/</loc>
+         <lastmod>2026-01-18</lastmod>
+    </url>
+    <url>
+         <loc>https://oliverhaas.github.io/django-prefetch-values/dev/reference/changelog/</loc>
+         <lastmod>2026-01-18</lastmod>
+    </url>
+</urlset>
