@@ -1,9 +1,11 @@
 # Installation
 
-## Requirements
+## Supported Versions
 
-- Python 3.13+
-- Django 6.0+
+|         | Python 3.13 | Python 3.14 |
+|---------|:-----------:|:-----------:|
+| Django 5.2 | ✓ | ✓ |
+| Django 6.0 | ✓ | ✓ |
 
 ## Install from PyPI
 

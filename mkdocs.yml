@@ -46,8 +46,6 @@ nav:
   - Getting Started:
       - Installation: getting-started/installation.md
       - Quick Start: getting-started/quickstart.md
-  - Guide:
-      - Django-Ninja API Example: guide/django-ninja.md
   - Reference:
       - API Reference: reference/api.md
       - Changelog: reference/changelog.md
