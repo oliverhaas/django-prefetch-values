@@ -1,8 +1,8 @@
 # Django Prefetch Values
 
-Enable `.prefetch_related().values()` in Django ORM - returns nested dicts with prefetched relations instead of model instances.
+An experimental package exploring how to combine `.prefetch_related()` with `.values()` in Django ORM, mainly so this can be used in some test cases to evaluate whether this feature is worth the effort.
 
-This package solves [Django ticket #26565](https://code.djangoproject.com/ticket/26565), which has been open since 2016.
+This explores a solution to [Django ticket #26565](https://code.djangoproject.com/ticket/26565).
 
 ## Quick Example
 
@@ -20,16 +20,7 @@ books = Book.objects.prefetch_related("authors").values()
 # [{"id": 1, "title": "Book 1", "authors": [{"id": 1, "name": "Author 1"}, ...]}, ...]
 ```
 
-## Performance
-
-For list endpoints with large page sizes (e.g., 1000 items) and multiple relations:
-
-| Approach | Time |
-|----------|------|
-| Standard Django | ~130ms |
-| django-prefetch-values | ~28ms |
-
 ## Requirements
 
 - Python 3.13+
-- Django 6.0+
+- Django 5.2+
