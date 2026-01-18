@@ -34,13 +34,19 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Python 3.13 supports Django 6.0
+          # Python 3.13 supports Django 5.2, 6.0
+          - python: "3.13"
+            django: "5.2"
           - python: "3.13"
             django: "6.0"
-          # Python 3.14 supports Django 6.0
+          # Python 3.14 supports Django 5.2, 6.0
+          - python: "3.14"
+            django: "5.2"
           - python: "3.14"
             django: "6.0"
-          # Python 3.14t (free-threaded) supports Django 6.0
+          # Python 3.14t (free-threaded) supports Django 5.2, 6.0
+          - python: "3.14t"
+            django: "5.2"
           - python: "3.14t"
             django: "6.0"
     steps:
