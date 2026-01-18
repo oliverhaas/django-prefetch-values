@@ -333,17 +333,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#performance" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Performance
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#requirements" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -723,17 +712,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#performance" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Performance
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#requirements" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -765,8 +743,8 @@
 
 
 <h1 id="django-prefetch-values">Django Prefetch Values<a class="headerlink" href="#django-prefetch-values" title="Permanent link">&para;</a></h1>
-<p>Enable <code>.prefetch_related().values()</code> in Django ORM - returns nested dicts with prefetched relations instead of model instances.</p>
-<p>This package solves <a href="https://code.djangoproject.com/ticket/26565">Django ticket #26565</a>, which has been open since 2016.</p>
+<p>An experimental package exploring how to combine <code>.prefetch_related()</code> with <code>.values()</code> in Django ORM, mainly so this can be used in some test cases to evaluate whether this feature is worth the effort.</p>
+<p>This explores a solution to <a href="https://code.djangoproject.com/ticket/26565">Django ticket #26565</a>.</p>
 <h2 id="quick-example">Quick Example<a class="headerlink" href="#quick-example" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_prefetch_values</span><span class="w"> </span><span class="kn">import</span> <span class="n">PrefetchValuesQuerySet</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
@@ -780,30 +758,10 @@
 <a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="n">books</span> <span class="o">=</span> <span class="n">Book</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">prefetch_related</span><span class="p">(</span><span class="s2">&quot;authors&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">values</span><span class="p">()</span>
 <a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="c1"># [{&quot;id&quot;: 1, &quot;title&quot;: &quot;Book 1&quot;, &quot;authors&quot;: [{&quot;id&quot;: 1, &quot;name&quot;: &quot;Author 1&quot;}, ...]}, ...]</span>
 </code></pre></div>
-<h2 id="performance">Performance<a class="headerlink" href="#performance" title="Permanent link">&para;</a></h2>
-<p>For list endpoints with large page sizes (e.g., 1000 items) and multiple relations:</p>
-<table>
-<thead>
-<tr>
-<th>Approach</th>
-<th>Time</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Standard Django</td>
-<td>~130ms</td>
-</tr>
-<tr>
-<td>django-prefetch-values</td>
-<td>~28ms</td>
-</tr>
-</tbody>
-</table>
 <h2 id="requirements">Requirements<a class="headerlink" href="#requirements" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Python 3.13+</li>
-<li>Django 6.0+</li>
+<li>Django 5.2+</li>
 </ul>
 
 
