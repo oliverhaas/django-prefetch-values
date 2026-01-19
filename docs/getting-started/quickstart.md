@@ -2,24 +2,24 @@
 
 ## Setup
 
-Add `PrefetchValuesQuerySet` as your model's manager:
+Add `NestedValuesQuerySet` as your model's manager:
 
 ```python
 from django.db import models
-from django_prefetch_values import PrefetchValuesQuerySet
+from django_nested_values import NestedValuesQuerySet
 
 
 class Author(models.Model):
     name = models.CharField(max_length=100)
 
-    objects = PrefetchValuesQuerySet.as_manager()
+    objects = NestedValuesQuerySet.as_manager()
 
 
 class Book(models.Model):
     title = models.CharField(max_length=200)
     authors = models.ManyToManyField(Author, related_name="books")
 
-    objects = PrefetchValuesQuerySet.as_manager()
+    objects = NestedValuesQuerySet.as_manager()
 ```
 
 ## Usage
@@ -29,7 +29,7 @@ class Book(models.Model):
 books = Book.objects.prefetch_related("authors").values()
 # [{"id": 1, "title": "Book 1"}, ...]  # No authors!
 
-# With django-prefetch-values - use values_nested() instead
+# With django-nested-values - use values_nested() instead
 books = Book.objects.prefetch_related("authors").values_nested()
 # [{"id": 1, "title": "Book 1", "authors": [{"id": 1, "name": "Author 1"}, ...]}, ...]
 ```
@@ -64,7 +64,7 @@ The main use case is APIs where data gets passed to Pydantic models. Instead of 
 | Approach | Flow |
 |----------|------|
 | Standard Django | DB → Django Model → dict → Pydantic |
-| django-prefetch-values | DB → dict → Pydantic |
+| django-nested-values | DB → dict → Pydantic |
 
 ```python
 from ninja import NinjaAPI

@@ -34,7 +34,7 @@ jobs:
         run: uv run ruff format --check
 
       - name: Run ty check
-        run: uv run ty check django_prefetch_values/
+        run: uv run ty check django_nested_values/
 
       - name: Run tests
         run: uv run pytest -n auto
@@ -44,7 +44,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: pypi
-      url: https://pypi.org/project/django-prefetch-values/
+      url: https://pypi.org/project/django-nested-values/
     permissions:
       id-token: write
     steps:

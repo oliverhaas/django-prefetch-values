@@ -1,6 +1,6 @@
 # API Reference
 
-## PrefetchValuesQuerySet
+## NestedValuesQuerySet
 
 A custom QuerySet that adds `.values_nested()` to return nested dictionaries with prefetched relations.
 
@@ -9,10 +9,10 @@ Inherits from `django.db.models.QuerySet`.
 ### Setup
 
 ```python
-from django_prefetch_values import PrefetchValuesQuerySet
+from django_nested_values import NestedValuesQuerySet
 
 class MyModel(models.Model):
-    objects = PrefetchValuesQuerySet.as_manager()
+    objects = NestedValuesQuerySet.as_manager()
 ```
 
 ### values_nested(*fields, **expressions)

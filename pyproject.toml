@@ -1,18 +1,11 @@
 [project]
-name = "django-prefetch-values"
+name = "django-nested-values"
 version = "0.3.0"
 description = "Add .values_nested() to Django querysets for nested prefetch dictionaries"
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.13"
-keywords = [
-  "django",
-  "orm",
-  "prefetch",
-  "values",
-  "queryset",
-  "prefetch_related",
-]
+keywords = ["django", "orm", "nested", "values", "queryset", "prefetch_related"]
 authors = [{ name = "Oliver Haas", email = "ohaas@e1plus.de" }]
 classifiers = [
   "Development Status :: 5 - Production/Stable",
@@ -32,9 +25,9 @@ classifiers = [
 dependencies = ["django>=5.2"]
 
 [project.urls]
-Homepage = "https://github.com/oliverhaas/django-prefetch-values"
-Documentation = "https://oliverhaas.github.io/django-prefetch-values/"
-Repository = "https://github.com/oliverhaas/django-prefetch-values.git"
+Homepage = "https://github.com/oliverhaas/django-nested-values"
+Documentation = "https://oliverhaas.github.io/django-nested-values/"
+Repository = "https://github.com/oliverhaas/django-nested-values.git"
 
 [dependency-groups]
 dev = [
@@ -54,10 +47,10 @@ requires = ["hatchling==1.28.0"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["django_prefetch_values"]
+packages = ["django_nested_values"]
 
 [tool.hatch.build.targets.sdist]
-include = ["django_prefetch_values"]
+include = ["django_nested_values"]
 
 [tool.ruff]
 line-length = 120
@@ -136,7 +129,7 @@ markers = [
 [tool.coverage.run]
 concurrency = ["thread"]
 branch = true
-source = ["django_prefetch_values"]
+source = ["django_nested_values"]
 omit = ["*/__init__.py"]
 
 [tool.coverage.report]

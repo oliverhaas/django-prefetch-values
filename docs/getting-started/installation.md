@@ -10,20 +10,20 @@
 ## Install from PyPI
 
 ```bash
-pip install django-prefetch-values
+pip install django-nested-values
 ```
 
 Or with uv:
 
 ```bash
-uv add django-prefetch-values
+uv add django-nested-values
 ```
 
 ## Development Installation
 
 ```bash
-git clone https://github.com/oliverhaas/django-prefetch-values.git
-cd django-prefetch-values
+git clone https://github.com/oliverhaas/django-nested-values.git
+cd django-nested-values
 uv venv
 uv sync --group dev
 ```

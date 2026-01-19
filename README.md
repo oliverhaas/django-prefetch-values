@@ -1,7 +1,7 @@
-# Django Prefetch Values
+# Django Nested Values
 
-[![PyPI version](https://img.shields.io/pypi/v/django-prefetch-values.svg)](https://pypi.org/project/django-prefetch-values/)
-[![CI](https://github.com/oliverhaas/django-prefetch-values/actions/workflows/ci.yml/badge.svg)](https://github.com/oliverhaas/django-prefetch-values/actions/workflows/ci.yml)
+[![PyPI version](https://img.shields.io/pypi/v/django-nested-values.svg)](https://pypi.org/project/django-nested-values/)
+[![CI](https://github.com/oliverhaas/django-nested-values/actions/workflows/ci.yml/badge.svg)](https://github.com/oliverhaas/django-nested-values/actions/workflows/ci.yml)
 
 An experimental package that adds `.values_nested()` to Django querysets, returning nested dictionaries with prefetched relations included.
 
@@ -14,7 +14,7 @@ Book.objects.prefetch_related("authors").values_nested("title", "authors")
 
 ## Documentation
 
-See the [full documentation](https://oliverhaas.github.io/django-prefetch-values/) for installation, usage, and API reference.
+See the [full documentation](https://oliverhaas.github.io/django-nested-values/) for installation, usage, and API reference.
 
 ## Supported Versions
 

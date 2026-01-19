@@ -17,7 +17,7 @@ django.setup()
 from django.db import connection, reset_queries
 
 from benchmarks.models import Author, Book, Chapter, Publisher, Review, Tag
-from django_prefetch_values import PrefetchValuesQuerySet
+from django_nested_values import NestedValuesQuerySet
 
 # Configuration
 NUM_PUBLISHERS = 50
@@ -178,7 +178,7 @@ def benchmark_normal_prefetch():
 
 def benchmark_prefetch_values_nested():
     """Benchmark: Fetch with prefetch_related().values_nested() - our new approach."""
-    qs = PrefetchValuesQuerySet(model=Book)
+    qs = NestedValuesQuerySet(model=Book)
     result = list(
         qs.prefetch_related("authors", "tags", "chapters", "reviews", "publisher").values_nested(
             "id",

@@ -1,8 +1,8 @@
-site_name: Django Prefetch Values
-site_url: https://oliverhaas.github.io/django-prefetch-values/
-site_description: Enable .prefetch_related().values() in Django ORM
-repo_name: oliverhaas/django-prefetch-values
-repo_url: https://github.com/oliverhaas/django-prefetch-values
+site_name: Django Nested Values
+site_url: https://oliverhaas.github.io/django-nested-values/
+site_description: Enable .prefetch_related().values_nested() in Django ORM
+repo_name: oliverhaas/django-nested-values
+repo_url: https://github.com/oliverhaas/django-nested-values
 
 theme:
   name: material

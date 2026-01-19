@@ -58,7 +58,7 @@ repos:
       - id: ty
         name: ty
         language: system
-        entry: uv run ty check django_prefetch_values/
+        entry: uv run ty check django_nested_values/
         pass_filenames: false
         always_run: true
         stages: [pre-push]

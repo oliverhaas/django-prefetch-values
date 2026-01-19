@@ -14,18 +14,18 @@ if TYPE_CHECKING:
     from django.db.models.expressions import Combinable
 
 
-class PrefetchValuesQuerySet(QuerySet):
-    # Internal attributes for prefetch values handling
-    _prefetch_values_fields: tuple[str, ...]
-    _prefetch_values_prefetch_fields: dict[str, list[str]]
-    _prefetch_values_nested: dict[str, list[str]]
+class NestedValuesQuerySet(QuerySet):
+    # Internal attributes for nested values handling
+    _nested_values_fields: tuple[str, ...]
+    _nested_values_prefetch_fields: dict[str, list[str]]
+    _nested_values_nested: dict[str, list[str]]
     """QuerySet that adds .values_nested() for nested prefetch dictionaries.
 
     This QuerySet adds the values_nested() method that returns nested dictionaries
     with prefetched relations included as lists of dicts.
 
     Usage:
-        class BookManager(models.Manager.from_queryset(PrefetchValuesQuerySet)):
+        class BookManager(models.Manager.from_queryset(NestedValuesQuerySet)):
             pass
 
         class Book(models.Model):
@@ -51,9 +51,9 @@ class PrefetchValuesQuerySet(QuerySet):
         if prefetch_fields:
             # We have prefetch-related fields - use custom iteration
             clone = self._clone()
-            clone._prefetch_values_fields = str_fields
-            clone._prefetch_values_prefetch_fields = prefetch_fields
-            clone._prefetch_values_nested = nested_prefetches
+            clone._nested_values_fields = str_fields
+            clone._nested_values_prefetch_fields = prefetch_fields
+            clone._nested_values_nested = nested_prefetches
             return clone
 
         # Check if any field references a relation that wasn't prefetched
@@ -149,27 +149,27 @@ class PrefetchValuesQuerySet(QuerySet):
     def _clone(self) -> Self:
         """Clone the queryset, preserving our custom attributes."""
         clone: Self = super()._clone()  # type: ignore[assignment]
-        if hasattr(self, "_prefetch_values_fields"):
-            clone._prefetch_values_fields = self._prefetch_values_fields
-        if hasattr(self, "_prefetch_values_prefetch_fields"):
-            clone._prefetch_values_prefetch_fields = self._prefetch_values_prefetch_fields
-        if hasattr(self, "_prefetch_values_nested"):
-            clone._prefetch_values_nested = self._prefetch_values_nested
+        if hasattr(self, "_nested_values_fields"):
+            clone._nested_values_fields = self._nested_values_fields
+        if hasattr(self, "_nested_values_prefetch_fields"):
+            clone._nested_values_prefetch_fields = self._nested_values_prefetch_fields
+        if hasattr(self, "_nested_values_nested"):
+            clone._nested_values_nested = self._nested_values_nested
         return clone
 
     def _fetch_all(self) -> None:
         """Override _fetch_all to use our custom values-based prefetching."""
         if self._result_cache is None:
-            if hasattr(self, "_prefetch_values_fields") and hasattr(self, "_prefetch_values_prefetch_fields"):
+            if hasattr(self, "_nested_values_fields") and hasattr(self, "_nested_values_prefetch_fields"):
                 self._result_cache = self._execute_prefetch_values()
             else:
                 super()._fetch_all()
 
     def _execute_prefetch_values(self) -> list[dict[str, Any]]:
         """Execute the query using .values() for main and prefetched relations."""
-        fields = self._prefetch_values_fields
-        prefetch_fields = self._prefetch_values_prefetch_fields
-        nested_prefetches = getattr(self, "_prefetch_values_nested", {})
+        fields = self._nested_values_fields
+        prefetch_fields = self._nested_values_prefetch_fields
+        nested_prefetches = getattr(self, "_nested_values_nested", {})
 
         # Get the base fields (non-relation fields)
         base_fields = [f for f in fields if "__" not in f and f not in prefetch_fields]
