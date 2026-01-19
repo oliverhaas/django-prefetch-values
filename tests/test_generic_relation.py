@@ -111,6 +111,23 @@ class TestGenericRelation:
 class TestGenericForeignKey:
     """Tests for GenericForeignKey support in values_nested()."""
 
+    def test_gfk_fields_included_without_prefetch(self):
+        """content_type_id and object_id should be included when not using GenericPrefetch."""
+        # Arrange
+        article = Article.objects.create(title="Test Article")
+        tag = TaggedItem.objects.create(content_object=article, tag="test")
+
+        # Act - No prefetch_related for content_object
+        qs = NestedValuesQuerySet(model=TaggedItem)
+        result = list(qs.filter(id=tag.id).values_nested())
+
+        # Assert - should have the FK fields as regular fields
+        assert len(result) == 1
+        assert "content_type_id" in result[0]
+        assert "object_id" in result[0]
+        assert result[0]["content_type_id"] is not None
+        assert result[0]["object_id"] == article.id
+
     def test_generic_fk_basic_with_single_model(self):
         """GenericForeignKey should be fetched when all point to same model type."""
         # Arrange
