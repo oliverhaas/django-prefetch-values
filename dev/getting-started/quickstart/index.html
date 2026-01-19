@@ -455,6 +455,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#ad-hoc-usage-no-model-changes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ad-hoc Usage (No Model Changes)
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -719,6 +730,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#ad-hoc-usage-no-model-changes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ad-hoc Usage (No Model Changes)
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -867,68 +889,81 @@
 <a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="c1"># Chain custom methods with values_nested()</span>
 <a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="n">Book</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">published</span><span class="p">()</span><span class="o">.</span><span class="n">prefetch_related</span><span class="p">(</span><span class="s2">&quot;authors&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">values_nested</span><span class="p">()</span>
 </code></pre></div>
+<h3 id="ad-hoc-usage-no-model-changes">Ad-hoc Usage (No Model Changes)<a class="headerlink" href="#ad-hoc-usage-no-model-changes" title="Permanent link">&para;</a></h3>
+<p>Use <code>NestedValuesQuerySet</code> directly without modifying your models:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_nested_values</span><span class="w"> </span><span class="kn">import</span> <span class="n">NestedValuesQuerySet</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="c1"># Instantiate with any model</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="n">qs</span> <span class="o">=</span> <span class="n">NestedValuesQuerySet</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">Book</span><span class="p">)</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="n">result</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>    <span class="n">qs</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">is_published</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>    <span class="o">.</span><span class="n">select_related</span><span class="p">(</span><span class="s2">&quot;publisher&quot;</span><span class="p">)</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>    <span class="o">.</span><span class="n">prefetch_related</span><span class="p">(</span><span class="s2">&quot;authors&quot;</span><span class="p">)</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>    <span class="o">.</span><span class="n">values_nested</span><span class="p">()</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="p">)</span>
+</code></pre></div>
 <h2 id="basic-usage">Basic Usage<a class="headerlink" href="#basic-usage" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Get all fields as nested dicts</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">books</span> <span class="o">=</span> <span class="n">Book</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">select_related</span><span class="p">(</span><span class="s2">&quot;publisher&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">prefetch_related</span><span class="p">(</span><span class="s2">&quot;authors&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">values_nested</span><span class="p">()</span>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="c1"># [{&quot;id&quot;: 1, &quot;title&quot;: &quot;...&quot;, &quot;publisher&quot;: {...}, &quot;authors&quot;: [...]}, ...]</span>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="c1"># Control which fields with only()</span>
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="n">books</span> <span class="o">=</span> <span class="n">Book</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">only</span><span class="p">(</span><span class="s2">&quot;title&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">prefetch_related</span><span class="p">(</span><span class="s2">&quot;authors&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">values_nested</span><span class="p">()</span>
-<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="c1"># [{&quot;id&quot;: 1, &quot;title&quot;: &quot;...&quot;, &quot;authors&quot;: [...]}, ...]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Get all fields as nested dicts</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">books</span> <span class="o">=</span> <span class="n">Book</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">select_related</span><span class="p">(</span><span class="s2">&quot;publisher&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">prefetch_related</span><span class="p">(</span><span class="s2">&quot;authors&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">values_nested</span><span class="p">()</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="c1"># [{&quot;id&quot;: 1, &quot;title&quot;: &quot;...&quot;, &quot;publisher&quot;: {...}, &quot;authors&quot;: [...]}, ...]</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="c1"># Control which fields with only()</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="n">books</span> <span class="o">=</span> <span class="n">Book</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">only</span><span class="p">(</span><span class="s2">&quot;title&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">prefetch_related</span><span class="p">(</span><span class="s2">&quot;authors&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">values_nested</span><span class="p">()</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="c1"># [{&quot;id&quot;: 1, &quot;title&quot;: &quot;...&quot;, &quot;authors&quot;: [...]}, ...]</span>
 </code></pre></div>
 <h2 id="foreignkey-select_related-vs-prefetch_related">ForeignKey: select_related vs prefetch_related<a class="headerlink" href="#foreignkey-select_related-vs-prefetch_related" title="Permanent link">&para;</a></h2>
 <p>For ForeignKey relations, use <code>select_related()</code> for efficient JOINs:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Efficient: 1 query with JOIN</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">books</span> <span class="o">=</span> <span class="n">Book</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">select_related</span><span class="p">(</span><span class="s2">&quot;publisher&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">values_nested</span><span class="p">()</span>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># Less efficient: 2 queries (books + publishers)</span>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="n">books</span> <span class="o">=</span> <span class="n">Book</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">prefetch_related</span><span class="p">(</span><span class="s2">&quot;publisher&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">values_nested</span><span class="p">()</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># Efficient: 1 query with JOIN</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="n">books</span> <span class="o">=</span> <span class="n">Book</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">select_related</span><span class="p">(</span><span class="s2">&quot;publisher&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">values_nested</span><span class="p">()</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="c1"># Less efficient: 2 queries (books + publishers)</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="n">books</span> <span class="o">=</span> <span class="n">Book</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">prefetch_related</span><span class="p">(</span><span class="s2">&quot;publisher&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">values_nested</span><span class="p">()</span>
 </code></pre></div>
 <p>Both return the same nested structure:
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="p">{</span><span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">&quot;title&quot;</span><span class="p">:</span> <span class="s2">&quot;...&quot;</span><span class="p">,</span> <span class="s2">&quot;publisher&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;...&quot;</span><span class="p">,</span> <span class="s2">&quot;country&quot;</span><span class="p">:</span> <span class="s2">&quot;...&quot;</span><span class="p">}}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="p">{</span><span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">&quot;title&quot;</span><span class="p">:</span> <span class="s2">&quot;...&quot;</span><span class="p">,</span> <span class="s2">&quot;publisher&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;...&quot;</span><span class="p">,</span> <span class="s2">&quot;country&quot;</span><span class="p">:</span> <span class="s2">&quot;...&quot;</span><span class="p">}}</span>
 </code></pre></div></p>
 <h2 id="manytomany-and-reverse-foreignkey">ManyToMany and Reverse ForeignKey<a class="headerlink" href="#manytomany-and-reverse-foreignkey" title="Permanent link">&para;</a></h2>
 <p>For M2M and reverse FK, use <code>prefetch_related()</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># ManyToMany</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="n">books</span> <span class="o">=</span> <span class="n">Book</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">prefetch_related</span><span class="p">(</span><span class="s2">&quot;authors&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">values_nested</span><span class="p">()</span>
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="c1"># {&quot;id&quot;: 1, &quot;title&quot;: &quot;...&quot;, &quot;authors&quot;: [{&quot;id&quot;: 1, &quot;name&quot;: &quot;...&quot;}, ...]}</span>
-<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="c1"># Reverse ForeignKey</span>
-<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="n">books</span> <span class="o">=</span> <span class="n">Book</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">prefetch_related</span><span class="p">(</span><span class="s2">&quot;chapters&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">values_nested</span><span class="p">()</span>
-<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="c1"># {&quot;id&quot;: 1, &quot;title&quot;: &quot;...&quot;, &quot;chapters&quot;: [{&quot;id&quot;: 1, &quot;title&quot;: &quot;Chapter 1&quot;}, ...]}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># ManyToMany</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="n">books</span> <span class="o">=</span> <span class="n">Book</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">prefetch_related</span><span class="p">(</span><span class="s2">&quot;authors&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">values_nested</span><span class="p">()</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="c1"># {&quot;id&quot;: 1, &quot;title&quot;: &quot;...&quot;, &quot;authors&quot;: [{&quot;id&quot;: 1, &quot;name&quot;: &quot;...&quot;}, ...]}</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="c1"># Reverse ForeignKey</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="n">books</span> <span class="o">=</span> <span class="n">Book</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">prefetch_related</span><span class="p">(</span><span class="s2">&quot;chapters&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">values_nested</span><span class="p">()</span>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="c1"># {&quot;id&quot;: 1, &quot;title&quot;: &quot;...&quot;, &quot;chapters&quot;: [{&quot;id&quot;: 1, &quot;title&quot;: &quot;Chapter 1&quot;}, ...]}</span>
 </code></pre></div>
 <h2 id="controlling-related-fields">Controlling Related Fields<a class="headerlink" href="#controlling-related-fields" title="Permanent link">&para;</a></h2>
 <p>Use <code>Prefetch</code> objects with <code>only()</code> to control which fields are included:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django.db.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Prefetch</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="c1"># Only fetch author names</span>
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="n">books</span> <span class="o">=</span> <span class="n">Book</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">only</span><span class="p">(</span><span class="s2">&quot;title&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">prefetch_related</span><span class="p">(</span>
-<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>    <span class="n">Prefetch</span><span class="p">(</span><span class="s2">&quot;authors&quot;</span><span class="p">,</span> <span class="n">queryset</span><span class="o">=</span><span class="n">Author</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">only</span><span class="p">(</span><span class="s2">&quot;name&quot;</span><span class="p">))</span>
-<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="p">)</span><span class="o">.</span><span class="n">values_nested</span><span class="p">()</span>
-<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="c1"># {&quot;id&quot;: 1, &quot;title&quot;: &quot;...&quot;, &quot;authors&quot;: [{&quot;id&quot;: 1, &quot;name&quot;: &quot;...&quot;}]}</span>
-<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>
-<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="c1"># Filter prefetched data</span>
-<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="n">books</span> <span class="o">=</span> <span class="n">Book</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">only</span><span class="p">(</span><span class="s2">&quot;title&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">prefetch_related</span><span class="p">(</span>
-<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a>    <span class="n">Prefetch</span><span class="p">(</span><span class="s2">&quot;authors&quot;</span><span class="p">,</span> <span class="n">queryset</span><span class="o">=</span><span class="n">Author</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">name__startswith</span><span class="o">=</span><span class="s2">&quot;A&quot;</span><span class="p">))</span>
-<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a><span class="p">)</span><span class="o">.</span><span class="n">values_nested</span><span class="p">()</span>
-<a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a>
-<a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a><span class="c1"># Custom to_attr</span>
-<a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a><span class="n">books</span> <span class="o">=</span> <span class="n">Book</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">only</span><span class="p">(</span><span class="s2">&quot;title&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">prefetch_related</span><span class="p">(</span>
-<a id="__codelineno-6-16" name="__codelineno-6-16" href="#__codelineno-6-16"></a>    <span class="n">Prefetch</span><span class="p">(</span><span class="s2">&quot;chapters&quot;</span><span class="p">,</span> <span class="n">queryset</span><span class="o">=</span><span class="n">Chapter</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">number</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span> <span class="n">to_attr</span><span class="o">=</span><span class="s2">&quot;first_chapter&quot;</span><span class="p">)</span>
-<a id="__codelineno-6-17" name="__codelineno-6-17" href="#__codelineno-6-17"></a><span class="p">)</span><span class="o">.</span><span class="n">values_nested</span><span class="p">()</span>
-<a id="__codelineno-6-18" name="__codelineno-6-18" href="#__codelineno-6-18"></a><span class="c1"># {&quot;id&quot;: 1, &quot;title&quot;: &quot;...&quot;, &quot;first_chapter&quot;: [{&quot;id&quot;: 1, &quot;title&quot;: &quot;Introduction&quot;}]}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django.db.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Prefetch</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="c1"># Only fetch author names</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="n">books</span> <span class="o">=</span> <span class="n">Book</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">only</span><span class="p">(</span><span class="s2">&quot;title&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">prefetch_related</span><span class="p">(</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>    <span class="n">Prefetch</span><span class="p">(</span><span class="s2">&quot;authors&quot;</span><span class="p">,</span> <span class="n">queryset</span><span class="o">=</span><span class="n">Author</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">only</span><span class="p">(</span><span class="s2">&quot;name&quot;</span><span class="p">))</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="p">)</span><span class="o">.</span><span class="n">values_nested</span><span class="p">()</span>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="c1"># {&quot;id&quot;: 1, &quot;title&quot;: &quot;...&quot;, &quot;authors&quot;: [{&quot;id&quot;: 1, &quot;name&quot;: &quot;...&quot;}]}</span>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="c1"># Filter prefetched data</span>
+<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="n">books</span> <span class="o">=</span> <span class="n">Book</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">only</span><span class="p">(</span><span class="s2">&quot;title&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">prefetch_related</span><span class="p">(</span>
+<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a>    <span class="n">Prefetch</span><span class="p">(</span><span class="s2">&quot;authors&quot;</span><span class="p">,</span> <span class="n">queryset</span><span class="o">=</span><span class="n">Author</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">name__startswith</span><span class="o">=</span><span class="s2">&quot;A&quot;</span><span class="p">))</span>
+<a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a><span class="p">)</span><span class="o">.</span><span class="n">values_nested</span><span class="p">()</span>
+<a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a>
+<a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a><span class="c1"># Custom to_attr</span>
+<a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a><span class="n">books</span> <span class="o">=</span> <span class="n">Book</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">only</span><span class="p">(</span><span class="s2">&quot;title&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">prefetch_related</span><span class="p">(</span>
+<a id="__codelineno-7-16" name="__codelineno-7-16" href="#__codelineno-7-16"></a>    <span class="n">Prefetch</span><span class="p">(</span><span class="s2">&quot;chapters&quot;</span><span class="p">,</span> <span class="n">queryset</span><span class="o">=</span><span class="n">Chapter</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">number</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span> <span class="n">to_attr</span><span class="o">=</span><span class="s2">&quot;first_chapter&quot;</span><span class="p">)</span>
+<a id="__codelineno-7-17" name="__codelineno-7-17" href="#__codelineno-7-17"></a><span class="p">)</span><span class="o">.</span><span class="n">values_nested</span><span class="p">()</span>
+<a id="__codelineno-7-18" name="__codelineno-7-18" href="#__codelineno-7-18"></a><span class="c1"># {&quot;id&quot;: 1, &quot;title&quot;: &quot;...&quot;, &quot;first_chapter&quot;: [{&quot;id&quot;: 1, &quot;title&quot;: &quot;Introduction&quot;}]}</span>
 </code></pre></div>
 <h2 id="combining-relations">Combining Relations<a class="headerlink" href="#combining-relations" title="Permanent link">&para;</a></h2>
 <p>Mix <code>select_related()</code> and <code>prefetch_related()</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="n">books</span> <span class="o">=</span> <span class="p">(</span>
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>    <span class="n">Book</span><span class="o">.</span><span class="n">objects</span>
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>    <span class="o">.</span><span class="n">only</span><span class="p">(</span><span class="s2">&quot;title&quot;</span><span class="p">)</span>
-<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>    <span class="o">.</span><span class="n">select_related</span><span class="p">(</span><span class="s2">&quot;publisher&quot;</span><span class="p">)</span>           <span class="c1"># FK: 1 query with JOIN</span>
-<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>    <span class="o">.</span><span class="n">prefetch_related</span><span class="p">(</span><span class="s2">&quot;authors&quot;</span><span class="p">,</span> <span class="s2">&quot;tags&quot;</span><span class="p">)</span>   <span class="c1"># M2M: +2 queries</span>
-<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>    <span class="o">.</span><span class="n">values_nested</span><span class="p">()</span>
-<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="p">)</span>
-<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="c1"># Total: 3 queries</span>
-<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="c1"># {&quot;id&quot;: 1, &quot;title&quot;: &quot;...&quot;, &quot;publisher&quot;: {...}, &quot;authors&quot;: [...], &quot;tags&quot;: [...]}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="n">books</span> <span class="o">=</span> <span class="p">(</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>    <span class="n">Book</span><span class="o">.</span><span class="n">objects</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>    <span class="o">.</span><span class="n">only</span><span class="p">(</span><span class="s2">&quot;title&quot;</span><span class="p">)</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>    <span class="o">.</span><span class="n">select_related</span><span class="p">(</span><span class="s2">&quot;publisher&quot;</span><span class="p">)</span>           <span class="c1"># FK: 1 query with JOIN</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>    <span class="o">.</span><span class="n">prefetch_related</span><span class="p">(</span><span class="s2">&quot;authors&quot;</span><span class="p">,</span> <span class="s2">&quot;tags&quot;</span><span class="p">)</span>   <span class="c1"># M2M: +2 queries</span>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>    <span class="o">.</span><span class="n">values_nested</span><span class="p">()</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="p">)</span>
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="c1"># Total: 3 queries</span>
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="c1"># {&quot;id&quot;: 1, &quot;title&quot;: &quot;...&quot;, &quot;publisher&quot;: {...}, &quot;authors&quot;: [...], &quot;tags&quot;: [...]}</span>
 </code></pre></div>
 <h2 id="use-case-api-endpoints">Use Case: API Endpoints<a class="headerlink" href="#use-case-api-endpoints" title="Permanent link">&para;</a></h2>
 <p>The main use case is APIs where data gets passed to Pydantic models:</p>
@@ -950,21 +985,21 @@
 </tr>
 </tbody>
 </table>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">ninja</span><span class="w"> </span><span class="kn">import</span> <span class="n">NinjaAPI</span>
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>
-<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="nd">@api</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;/books&quot;</span><span class="p">,</span> <span class="n">response</span><span class="o">=</span><span class="nb">list</span><span class="p">[</span><span class="n">BookSchema</span><span class="p">])</span>
-<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="k">def</span><span class="w"> </span><span class="nf">list_books</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
-<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>    <span class="k">return</span> <span class="nb">list</span><span class="p">(</span>
-<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>        <span class="n">Book</span><span class="o">.</span><span class="n">objects</span>
-<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>        <span class="o">.</span><span class="n">only</span><span class="p">(</span><span class="s2">&quot;id&quot;</span><span class="p">,</span> <span class="s2">&quot;title&quot;</span><span class="p">)</span>
-<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>        <span class="o">.</span><span class="n">select_related</span><span class="p">(</span><span class="s2">&quot;publisher&quot;</span><span class="p">)</span>
-<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>        <span class="o">.</span><span class="n">prefetch_related</span><span class="p">(</span><span class="s2">&quot;authors&quot;</span><span class="p">)</span>
-<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a>        <span class="o">.</span><span class="n">values_nested</span><span class="p">()</span>
-<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a>    <span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">ninja</span><span class="w"> </span><span class="kn">import</span> <span class="n">NinjaAPI</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="nd">@api</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;/books&quot;</span><span class="p">,</span> <span class="n">response</span><span class="o">=</span><span class="nb">list</span><span class="p">[</span><span class="n">BookSchema</span><span class="p">])</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="k">def</span><span class="w"> </span><span class="nf">list_books</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>    <span class="k">return</span> <span class="nb">list</span><span class="p">(</span>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>        <span class="n">Book</span><span class="o">.</span><span class="n">objects</span>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>        <span class="o">.</span><span class="n">only</span><span class="p">(</span><span class="s2">&quot;id&quot;</span><span class="p">,</span> <span class="s2">&quot;title&quot;</span><span class="p">)</span>
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a>        <span class="o">.</span><span class="n">select_related</span><span class="p">(</span><span class="s2">&quot;publisher&quot;</span><span class="p">)</span>
+<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a>        <span class="o">.</span><span class="n">prefetch_related</span><span class="p">(</span><span class="s2">&quot;authors&quot;</span><span class="p">)</span>
+<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a>        <span class="o">.</span><span class="n">values_nested</span><span class="p">()</span>
+<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a>    <span class="p">)</span>
 </code></pre></div>
 <h2 id="benchmark">Benchmark<a class="headerlink" href="#benchmark" title="Permanent link">&para;</a></h2>
 <p>The included benchmark (<code>benchmarks/benchmark.py</code>) tests fetching 1000 books with multiple relations. Both approaches use the same number of database queries.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>benchmarks/benchmark.py
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>benchmarks/benchmark.py
 </code></pre></div>
 
 
