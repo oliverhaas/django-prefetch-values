@@ -1,5 +1,6 @@
 # tests/test_generic_relation.py
 import pytest
+from django.contrib.contenttypes.prefetch import GenericPrefetch
 
 from django_nested_values import NestedValuesQuerySet
 from tests.models import Article, Comment, TaggedItem
@@ -104,3 +105,124 @@ class TestGenericRelation:
         # Assert - basic check that it doesn't error
         assert len(result) == 1
         assert len(result[0]["tags"]) == 1
+
+
+@pytest.mark.django_db
+class TestGenericForeignKey:
+    """Tests for GenericForeignKey support in values_nested()."""
+
+    def test_generic_fk_basic_with_single_model(self):
+        """GenericForeignKey should be fetched when all point to same model type."""
+        # Arrange
+        article = Article.objects.create(title="Test Article")
+        tag1 = TaggedItem.objects.create(content_object=article, tag="python")
+        tag2 = TaggedItem.objects.create(content_object=article, tag="django")
+
+        # Act
+        qs = NestedValuesQuerySet(model=TaggedItem)
+        prefetch = GenericPrefetch("content_object", [Article.objects.all()])
+        result = list(
+            qs.filter(id__in=[tag1.id, tag2.id]).prefetch_related(prefetch).values_nested(),
+        )
+
+        # Assert
+        assert len(result) == 2
+        for r in result:
+            assert "content_object" in r
+            assert r["content_object"]["title"] == "Test Article"
+
+    def test_generic_fk_multiple_content_types(self):
+        """GenericForeignKey should work with different content types."""
+        # Arrange
+        article = Article.objects.create(title="Test Article")
+        comment = Comment.objects.create(article=article, text="Test Comment")
+        tag1 = TaggedItem.objects.create(content_object=article, tag="article-tag")
+        tag2 = TaggedItem.objects.create(content_object=comment, tag="comment-tag")
+
+        # Act
+        qs = NestedValuesQuerySet(model=TaggedItem)
+        prefetch = GenericPrefetch(
+            "content_object",
+            [Article.objects.all(), Comment.objects.all()],
+        )
+        result = list(
+            qs.filter(id__in=[tag1.id, tag2.id]).prefetch_related(prefetch).values_nested(),
+        )
+
+        # Assert
+        assert len(result) == 2
+        result_by_tag = {r["tag"]: r for r in result}
+
+        # Article tag should have title
+        assert "content_object" in result_by_tag["article-tag"]
+        assert result_by_tag["article-tag"]["content_object"]["title"] == "Test Article"
+
+        # Comment tag should have text
+        assert "content_object" in result_by_tag["comment-tag"]
+        assert result_by_tag["comment-tag"]["content_object"]["text"] == "Test Comment"
+
+    def test_generic_fk_object_not_in_prefetch_querysets(self):
+        """GenericForeignKey returns None if content type not in GenericPrefetch querysets."""
+        # Arrange - Tag pointing to Comment, but we only prefetch Articles
+        article = Article.objects.create(title="Test")
+        comment = Comment.objects.create(article=article, text="Test Comment")
+        tag = TaggedItem.objects.create(content_object=comment, tag="comment-only")
+
+        # Act - Only prefetch Articles, not Comments
+        qs = NestedValuesQuerySet(model=TaggedItem)
+        prefetch = GenericPrefetch("content_object", [Article.objects.all()])
+        result = list(
+            qs.filter(id=tag.id).prefetch_related(prefetch).values_nested(),
+        )
+
+        # Assert - content_object should be None since Comment wasn't in querysets
+        assert len(result) == 1
+        assert result[0]["content_object"] is None
+
+    def test_generic_fk_nested_relation_on_content_object(self):
+        """GenericForeignKey should support nested relations via GenericPrefetch queryset."""
+        # Arrange
+        article = Article.objects.create(title="Article with Comments")
+        Comment.objects.create(article=article, text="Nested Comment")
+        tag = TaggedItem.objects.create(content_object=article, tag="nested-test")
+
+        # Act - prefetch content_object with its comments
+        qs = NestedValuesQuerySet(model=TaggedItem)
+        prefetch = GenericPrefetch(
+            "content_object",
+            [Article.objects.prefetch_related("comments")],
+        )
+        result = list(
+            qs.filter(id=tag.id).prefetch_related(prefetch).values_nested(),
+        )
+
+        # Assert
+        assert len(result) == 1
+        assert result[0]["content_object"]["title"] == "Article with Comments"
+        assert "comments" in result[0]["content_object"]
+        assert len(result[0]["content_object"]["comments"]) == 1
+        assert result[0]["content_object"]["comments"][0]["text"] == "Nested Comment"
+
+    def test_generic_fk_with_nonexistent_object_id(self):
+        """GenericForeignKey pointing to nonexistent object should return None."""
+        # Arrange
+        from django.contrib.contenttypes.models import ContentType
+
+        ct = ContentType.objects.get_for_model(Article)
+        # Create tag pointing to an article ID that doesn't exist
+        tag = TaggedItem.objects.create(
+            tag="dangling-ref",
+            content_type=ct,
+            object_id=99999,  # Nonexistent ID
+        )
+
+        # Act
+        qs = NestedValuesQuerySet(model=TaggedItem)
+        prefetch = GenericPrefetch("content_object", [Article.objects.all()])
+        result = list(
+            qs.filter(id=tag.id).prefetch_related(prefetch).values_nested(),
+        )
+
+        # Assert
+        assert len(result) == 1
+        assert result[0]["content_object"] is None

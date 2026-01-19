@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Generic, Self, TypeVar, cast
 
-from django.contrib.contenttypes.fields import GenericRelation
+from django.contrib.contenttypes.fields import GenericForeignKey, GenericRelation
 from django.contrib.contenttypes.models import ContentType
+from django.contrib.contenttypes.prefetch import GenericPrefetch
 from django.core.exceptions import FieldDoesNotExist
 from django.db.models import ForeignKey, ManyToManyField, ManyToManyRel, ManyToOneRel, Model, Prefetch, QuerySet
 from django.db.models.query import BaseIterable
@@ -281,13 +282,21 @@ class NestedValuesQuerySetMixin(_MixinBase[_ModelT_co]):
             lookup = lookup_info["lookup"]
             nested = lookup_info["nested"]
 
-            result[attr_name] = self._fetch_relation_values(
-                attr_name,
-                lookup,
-                nested,
-                parent_pks,
-                main_results,
-            )
+            if lookup_info.get("is_generic_fk"):
+                # Handle GenericForeignKey via GenericPrefetch
+                result[attr_name] = self._fetch_generic_fk_values(  # type: ignore[assignment]
+                    lookup,
+                    parent_pks,
+                    main_results,
+                )
+            else:
+                result[attr_name] = self._fetch_relation_values(
+                    attr_name,
+                    lookup,
+                    nested,
+                    parent_pks,
+                    main_results,
+                )
 
         return result
 
@@ -296,25 +305,39 @@ class NestedValuesQuerySetMixin(_MixinBase[_ModelT_co]):
         result: dict[str, dict] = {}
 
         for lookup in prefetch_lookups:
-            if isinstance(lookup, Prefetch):
+            if isinstance(lookup, GenericPrefetch):
+                # GenericPrefetch for GenericForeignKey
+                attr_name = lookup.to_attr or lookup.prefetch_to
+                result[attr_name] = {"lookup": lookup, "nested": [], "is_generic_fk": True}
+            elif isinstance(lookup, Prefetch):
                 # Get the attribute name (to_attr or top-level relation)
                 to_attr, _ = lookup.get_current_to_attr(0)
                 attr_name = to_attr or lookup.prefetch_to.split("__")[0]
                 relation_path = lookup.prefetch_through if to_attr else lookup.prefetch_to
+
+                # Track nested relations
+                if attr_name not in result:
+                    result[attr_name] = {"lookup": lookup, "nested": []}
+
+                # Check for nested parts (e.g., "books__chapters" -> "chapters" is nested under "books")
+                if "__" in relation_path:
+                    parts = relation_path.split("__", 1)
+                    if parts[0] == attr_name or attr_name == parts[0]:
+                        result[attr_name]["nested"].append(parts[1])
             else:
                 # String lookup
                 attr_name = lookup.split("__")[0]
                 relation_path = lookup
 
-            # Track nested relations
-            if attr_name not in result:
-                result[attr_name] = {"lookup": lookup, "nested": []}
+                # Track nested relations
+                if attr_name not in result:
+                    result[attr_name] = {"lookup": lookup, "nested": []}
 
-            # Check for nested parts (e.g., "books__chapters" -> "chapters" is nested under "books")
-            if "__" in relation_path:
-                parts = relation_path.split("__", 1)
-                if parts[0] == attr_name or (isinstance(lookup, Prefetch) and attr_name == parts[0]):
-                    result[attr_name]["nested"].append(parts[1])
+                # Check for nested parts
+                if "__" in relation_path:
+                    parts = relation_path.split("__", 1)
+                    if parts[0] == attr_name:
+                        result[attr_name]["nested"].append(parts[1])
 
         return result
 
@@ -722,6 +745,115 @@ class NestedValuesQuerySetMixin(_MixinBase[_ModelT_co]):
             result[parent_pk].append(row_dict)
 
         return result
+
+    def _fetch_generic_fk_values(
+        self,
+        lookup: GenericPrefetch,
+        parent_pks: list[Any],
+        main_results: list[dict],
+    ) -> dict[Any, dict | None]:
+        """Fetch GenericForeignKey data using GenericPrefetch.
+
+        GenericForeignKey can point to different model types. GenericPrefetch
+        provides a list of querysets, one for each possible content type.
+        """
+        gfk_attr = lookup.prefetch_to  # e.g., "content_object"
+
+        # Find the GenericForeignKey descriptor on the model to get field names
+        gfk_descriptor = getattr(self.model, gfk_attr, None)
+        if not isinstance(gfk_descriptor, GenericForeignKey):
+            return dict.fromkeys(parent_pks)
+
+        ct_field = gfk_descriptor.ct_field  # e.g., "content_type"
+        fk_field = gfk_descriptor.fk_field  # e.g., "object_id"
+        ct_attname = f"{ct_field}_id"  # e.g., "content_type_id"
+
+        pk_name = self.model._meta.pk.name
+
+        # Build mapping: parent_pk -> (content_type_id, object_id)
+        parent_gfk_info: dict[Any, tuple[Any, Any]] = {}
+        for row in main_results:
+            parent_pk = row[pk_name]
+            ct_id = row.get(ct_attname)
+            obj_id = row.get(fk_field)
+            parent_gfk_info[parent_pk] = (ct_id, obj_id)
+
+        # Group parent PKs by content_type_id
+        ct_to_parents: dict[Any, list[tuple[Any, Any]]] = {}  # ct_id -> [(parent_pk, object_id), ...]
+        for parent_pk, (ct_id, obj_id) in parent_gfk_info.items():
+            if ct_id is not None and obj_id is not None:
+                if ct_id not in ct_to_parents:
+                    ct_to_parents[ct_id] = []
+                ct_to_parents[ct_id].append((parent_pk, obj_id))
+
+        # Build mapping: content_type_id -> queryset from GenericPrefetch
+        ct_to_queryset: dict[int, QuerySet] = {}
+        for qs in lookup.querysets:  # type: ignore[attr-defined]
+            ct = ContentType.objects.get_for_model(qs.model)
+            ct_to_queryset[ct.id] = qs
+
+        # Fetch objects for each content type
+        result: dict[Any, dict | None] = dict.fromkeys(parent_pks)
+
+        for ct_id, parent_obj_pairs in ct_to_parents.items():
+            if ct_id not in ct_to_queryset:
+                # Content type not in the provided querysets - skip
+                continue
+
+            qs = ct_to_queryset[ct_id]
+            related_model = qs.model
+            related_pk_name = related_model._meta.pk.name
+
+            # Get object IDs to fetch
+            object_ids = [obj_id for _, obj_id in parent_obj_pairs]
+
+            # Get fields to fetch
+            fetch_fields = self._get_fields_for_relation(related_model, qs)
+            if related_pk_name not in fetch_fields:
+                fetch_fields = [related_pk_name, *fetch_fields]
+
+            # Fetch the related objects
+            related_qs = qs.filter(pk__in=object_ids)
+            related_data = {r[related_pk_name]: dict(r) for r in related_qs.values(*fetch_fields)}
+
+            # Handle nested prefetches on the GenericPrefetch queryset
+            if qs._prefetch_related_lookups:  # type: ignore[attr-defined]
+                # The queryset has its own prefetch_related - we need to process those
+                nested_pks = list(related_data.keys())
+                if nested_pks:
+                    nested_prefetched = self._fetch_prefetched_for_related(
+                        related_model,
+                        qs._prefetch_related_lookups,  # type: ignore[attr-defined]
+                        nested_pks,
+                        list(related_data.values()),
+                    )
+                    # Merge nested data into related_data
+                    for pk_val, row_data in related_data.items():
+                        for attr, data_by_pk in nested_prefetched.items():
+                            row_data[attr] = data_by_pk.get(pk_val, [])
+
+            # Map back to parent PKs
+            for parent_pk, obj_id in parent_obj_pairs:
+                if obj_id in related_data:
+                    result[parent_pk] = dict(related_data[obj_id])
+
+        return result
+
+    def _fetch_prefetched_for_related(
+        self,
+        model: type[Model],
+        prefetch_lookups: tuple,
+        parent_pks: list[Any],
+        main_results: list[dict],
+    ) -> dict[str, dict[Any, list[dict] | dict | None]]:
+        """Fetch prefetched relations for a related model (used by GenericForeignKey)."""
+        # Create a temporary mixin instance for the related model
+        temp_qs = NestedValuesQuerySetMixin.__new__(NestedValuesQuerySetMixin)
+        temp_qs.model = model
+        temp_qs.db = self.db
+        temp_qs.query = model._default_manager.all().query
+
+        return temp_qs._fetch_all_prefetched(prefetch_lookups, parent_pks, main_results)
 
     def _build_results(
         self,
