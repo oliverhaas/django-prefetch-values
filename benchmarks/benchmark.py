@@ -1,4 +1,4 @@
-"""Benchmark comparing normal prefetch_related vs prefetch_related().values_nested()."""
+"""Benchmark comparing normal select_related/prefetch_related vs values_nested()."""
 
 from __future__ import annotations
 
@@ -141,9 +141,9 @@ def setup_database():
 
 
 def benchmark_normal_prefetch():
-    """Benchmark: Fetch with prefetch_related, then manually convert to dicts."""
+    """Benchmark: Fetch with select_related/prefetch_related, then manually convert to dicts."""
     books = list(
-        Book.objects.prefetch_related("authors", "tags", "chapters", "reviews", "publisher").all(),
+        Book.objects.select_related("publisher").prefetch_related("authors", "tags", "chapters", "reviews").all(),
     )
 
     # Convert to dicts manually (what you'd typically do)
@@ -177,21 +177,10 @@ def benchmark_normal_prefetch():
 
 
 def benchmark_prefetch_values_nested():
-    """Benchmark: Fetch with prefetch_related().values_nested() - our new approach."""
+    """Benchmark: Fetch with select_related/prefetch_related().values_nested() - our new approach."""
     qs = NestedValuesQuerySet(model=Book)
     result = list(
-        qs.prefetch_related("authors", "tags", "chapters", "reviews", "publisher").values_nested(
-            "id",
-            "title",
-            "isbn",
-            "price",
-            "published_date",
-            "publisher",
-            "authors",
-            "tags",
-            "chapters",
-            "reviews",
-        ),
+        qs.select_related("publisher").prefetch_related("authors", "tags", "chapters", "reviews").values_nested(),
     )
     return result
 
@@ -271,8 +260,8 @@ def main():
     # Benchmark 1: Normal prefetch + manual dict conversion
     results.append(run_benchmark("Normal prefetch + manual dict", benchmark_normal_prefetch))
 
-    # Benchmark 2: Our prefetch_related().values_nested()
-    results.append(run_benchmark("prefetch_related().values_nested()", benchmark_prefetch_values_nested))
+    # Benchmark 2: Our select_related/prefetch_related().values_nested()
+    results.append(run_benchmark("values_nested()", benchmark_prefetch_values_nested))
 
     # Benchmark 3: Standard values() (for reference, but loses M2M/reverse FK)
     results.append(run_benchmark("Standard values() (no M2M)", benchmark_values_only))
@@ -299,7 +288,7 @@ def main():
 
     speedup = normal["mean_time"] / prefetch_values["mean_time"]
     print(
-        f"prefetch_related().values_nested() is {speedup:.2f}x {'faster' if speedup > 1 else 'slower'} than normal prefetch + manual dict",
+        f"values_nested() is {speedup:.2f}x {'faster' if speedup > 1 else 'slower'} than normal prefetch + manual dict",
     )
     print(f"  - Normal: {normal['mean_time'] * 1000:.2f}ms")
     print(f"  - values_nested(): {prefetch_values['mean_time'] * 1000:.2f}ms")

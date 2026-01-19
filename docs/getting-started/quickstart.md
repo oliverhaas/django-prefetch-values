@@ -9,6 +9,12 @@ from django.db import models
 from django_nested_values import NestedValuesQuerySet
 
 
+class Publisher(models.Model):
+    name = models.CharField(max_length=100)
+
+    objects = NestedValuesQuerySet.as_manager()
+
+
 class Author(models.Model):
     name = models.CharField(max_length=100)
 
@@ -17,49 +23,99 @@ class Author(models.Model):
 
 class Book(models.Model):
     title = models.CharField(max_length=200)
+    publisher = models.ForeignKey(Publisher, on_delete=models.CASCADE)
     authors = models.ManyToManyField(Author, related_name="books")
 
     objects = NestedValuesQuerySet.as_manager()
 ```
 
-## Usage
+## Basic Usage
 
 ```python
-# Standard Django - prefetch_related is IGNORED with values()
-books = Book.objects.prefetch_related("authors").values()
-# [{"id": 1, "title": "Book 1"}, ...]  # No authors!
+# Get all fields as nested dicts
+books = Book.objects.select_related("publisher").prefetch_related("authors").values_nested()
+# [{"id": 1, "title": "...", "publisher": {...}, "authors": [...]}, ...]
 
-# With django-nested-values - use values_nested() instead
-books = Book.objects.prefetch_related("authors").values_nested()
-# [{"id": 1, "title": "Book 1", "authors": [{"id": 1, "name": "Author 1"}, ...]}, ...]
+# Control which fields with only()
+books = Book.objects.only("title").prefetch_related("authors").values_nested()
+# [{"id": 1, "title": "...", "authors": [...]}, ...]
 ```
 
-## Supported Relations
+## ForeignKey: select_related vs prefetch_related
 
-- **ManyToMany**: `Book.objects.prefetch_related("authors").values_nested()`
-- **Reverse ForeignKey**: `Author.objects.prefetch_related("books").values_nested()`
-- **Nested**: `Publisher.objects.prefetch_related(Prefetch("books", queryset=Book.objects.prefetch_related("authors"))).values_nested()`
+For ForeignKey relations, use `select_related()` for efficient JOINs:
 
-## Prefetch Objects
+```python
+# Efficient: 1 query with JOIN
+books = Book.objects.select_related("publisher").values_nested()
+
+# Less efficient: 2 queries (books + publishers)
+books = Book.objects.prefetch_related("publisher").values_nested()
+```
+
+Both return the same nested structure:
+```python
+{"id": 1, "title": "...", "publisher": {"id": 1, "name": "...", "country": "..."}}
+```
+
+## ManyToMany and Reverse ForeignKey
+
+For M2M and reverse FK, use `prefetch_related()`:
+
+```python
+# ManyToMany
+books = Book.objects.prefetch_related("authors").values_nested()
+# {"id": 1, "title": "...", "authors": [{"id": 1, "name": "..."}, ...]}
+
+# Reverse ForeignKey
+books = Book.objects.prefetch_related("chapters").values_nested()
+# {"id": 1, "title": "...", "chapters": [{"id": 1, "title": "Chapter 1"}, ...]}
+```
+
+## Controlling Related Fields
+
+Use `Prefetch` objects with `only()` to control which fields are included:
 
 ```python
 from django.db.models import Prefetch
 
+# Only fetch author names
+books = Book.objects.only("title").prefetch_related(
+    Prefetch("authors", queryset=Author.objects.only("name"))
+).values_nested()
+# {"id": 1, "title": "...", "authors": [{"id": 1, "name": "..."}]}
+
 # Filter prefetched data
-Book.objects.prefetch_related(
+books = Book.objects.only("title").prefetch_related(
     Prefetch("authors", queryset=Author.objects.filter(name__startswith="A"))
 ).values_nested()
 
 # Custom to_attr
-Book.objects.prefetch_related(
-    Prefetch("authors", to_attr="author_list")
+books = Book.objects.only("title").prefetch_related(
+    Prefetch("chapters", queryset=Chapter.objects.filter(number=1), to_attr="first_chapter")
 ).values_nested()
-# [{"id": 1, "title": "Book 1", "author_list": [...]}, ...]
+# {"id": 1, "title": "...", "first_chapter": [{"id": 1, "title": "Introduction"}]}
+```
+
+## Combining Relations
+
+Mix `select_related()` and `prefetch_related()`:
+
+```python
+books = (
+    Book.objects
+    .only("title")
+    .select_related("publisher")           # FK: 1 query with JOIN
+    .prefetch_related("authors", "tags")   # M2M: +2 queries
+    .values_nested()
+)
+# Total: 3 queries
+# {"id": 1, "title": "...", "publisher": {...}, "authors": [...], "tags": [...]}
 ```
 
 ## Use Case: API Endpoints
 
-The main use case is APIs where data gets passed to Pydantic models. Instead of instantiating Django models just to serialize them, fetch dicts directly:
+The main use case is APIs where data gets passed to Pydantic models:
 
 | Approach | Flow |
 |----------|------|
@@ -71,20 +127,18 @@ from ninja import NinjaAPI
 
 @api.get("/books", response=list[BookSchema])
 def list_books(request):
-    return list(Book.objects.prefetch_related("authors").values_nested())
+    return list(
+        Book.objects
+        .only("id", "title")
+        .select_related("publisher")
+        .prefetch_related("authors")
+        .values_nested()
+    )
 ```
 
 ## Benchmark
 
-The included benchmark (`benchmarks/benchmark.py`) tests fetching 1000 books, each with:
-
-- 1 publisher (ForeignKey)
-- 1-3 authors (ManyToMany)
-- 1-4 tags (ManyToMany)
-- 1-5 chapters (reverse ForeignKey)
-- 0-3 reviews (reverse ForeignKey)
-
-Both approaches use the same number of database queries.
+The included benchmark (`benchmarks/benchmark.py`) tests fetching 1000 books with multiple relations. Both approaches use the same number of database queries.
 
 ```bash
 uv run python benchmarks/benchmark.py
