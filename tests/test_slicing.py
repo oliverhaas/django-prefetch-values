@@ -202,3 +202,43 @@ class TestValuesNestedSlicing:
         # Results should have same IDs (order matters)
         assert result1[0]["id"] == result2[0]["id"]
         assert result1[1]["id"] == result2[1]["id"]
+
+    def test_values_nested_slicing_with_select_related(self, sample_data, settings):
+        """Slicing should preserve select_related and return nested dicts."""
+        settings.DEBUG = True
+        reset_queries()
+
+        qs = NestedValuesQuerySet(model=Book)
+        result = list(qs.order_by("id").select_related("publisher").values_nested()[0:2])
+
+        # Should use single query with JOIN
+        assert len(connection.queries) == 1
+        sql = connection.queries[0]["sql"]
+        assert "JOIN" in sql.upper(), f"Expected JOIN in SQL: {sql}"
+        assert "LIMIT" in sql.upper(), f"Expected LIMIT in SQL: {sql}"
+
+        # Check results have nested publisher dict
+        assert len(result) == 2
+        for book in result:
+            assert "publisher" in book, f"Missing 'publisher' key in {book}"
+            assert isinstance(book["publisher"], dict), f"Publisher should be dict, got {type(book.get('publisher'))}"
+            assert "name" in book["publisher"], f"Publisher missing 'name': {book['publisher']}"
+            assert "country" in book["publisher"], f"Publisher missing 'country': {book['publisher']}"
+
+    def test_values_nested_slicing_select_related_matches_unsliced(self, sample_data):
+        """Sliced results with select_related should match unsliced results."""
+        qs = NestedValuesQuerySet(model=Book)
+
+        # Get all results
+        all_results = list(qs.order_by("id").select_related("publisher").values_nested())
+
+        # Get sliced results
+        sliced_results = list(qs.order_by("id").select_related("publisher").values_nested()[0:2])
+
+        # First two should be identical
+        assert sliced_results[0] == all_results[0], "First item mismatch"
+        assert sliced_results[1] == all_results[1], "Second item mismatch"
+
+        # Both should have publisher as dict with same content
+        assert sliced_results[0]["publisher"] == all_results[0]["publisher"]
+        assert sliced_results[1]["publisher"] == all_results[1]["publisher"]
