@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+    <url>
+         <loc>https://oliverhaas.github.io/django-nested-values/0.6.13/</loc>
+         <lastmod>2026-01-20</lastmod>
+    </url>
+    <url>
+         <loc>https://oliverhaas.github.io/django-nested-values/0.6.13/getting-started/installation/</loc>
+         <lastmod>2026-01-20</lastmod>
+    </url>
+    <url>
+         <loc>https://oliverhaas.github.io/django-nested-values/0.6.13/getting-started/quickstart/</loc>
+         <lastmod>2026-01-20</lastmod>
+    </url>
+    <url>
+         <loc>https://oliverhaas.github.io/django-nested-values/0.6.13/reference/api/</loc>
+         <lastmod>2026-01-20</lastmod>
+    </url>
+    <url>
+         <loc>https://oliverhaas.github.io/django-nested-values/0.6.13/reference/changelog/</loc>
+         <lastmod>2026-01-20</lastmod>
+    </url>
+</urlset>
