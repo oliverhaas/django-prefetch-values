@@ -8,6 +8,7 @@ from django.contrib.contenttypes.fields import GenericForeignKey, GenericRelatio
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.contenttypes.prefetch import GenericPrefetch
 from django.core.exceptions import FieldDoesNotExist
+from django.db import connections
 from django.db.models import ForeignKey, ManyToManyField, ManyToManyRel, ManyToOneRel, Model, Prefetch, QuerySet
 from django.db.models.query import BaseIterable
 
@@ -650,8 +651,6 @@ class NestedValuesQuerySetMixin(_MixinBase[_ModelT_co]):
         Uses Django's compiler with .extra() annotation to match Django's native
         prefetch_related behavior. Raw rows → dicts, no model instantiation.
         """
-        from django.db import connections
-
         related_pk_name = related_model._meta.pk.name
 
         if custom_qs is not None:

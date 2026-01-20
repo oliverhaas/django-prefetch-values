@@ -69,7 +69,6 @@ ignore = [
   "D",       # Docstrings not enforced
   "E5",      # 120 char limit is sufficient
   "EM102",   # f-string in AttributeError matches Python's standard format
-  "PLC0415", # Lazy import of django.db.connections in M2M method
   "PLR0912", # Complex ORM dispatch logic requires many branches
   "SLF001",  # Private member access needed for Django internals
   "TRY003",  # AttributeError message matches Python's standard format
@@ -85,6 +84,7 @@ unfixable = []
   "ARG002",
   "ERA001",  # Commented code in models is explanatory
   "N806",    # Dynamic class creation uses CamelCase variable names
+  "PLC0415", # Lazy imports in fixtures and test setup
   "PLR0913", # Too many arguments in test fixtures
   "PLR2004", # Magic values in tests are fine
   "RUF012",  # Django model attributes don't need ClassVar
@@ -98,6 +98,7 @@ unfixable = []
   "ERA001",  # Commented code is explanatory
   "INP001",  # Benchmarks don't need __init__.py in namespace
   "PERF401", # List comprehensions not always cleaner in benchmarks
+  "PLC0415", # Lazy imports after django.setup()
   "PLR0913", # Too many arguments
   "PLR0915", # Long setup function is fine
   "PLR2004", # Magic values in benchmarks are fine
