@@ -656,22 +656,7 @@ class NestedValuesQuerySetMixin(_MixinBase[_ModelT_co]):
         main_results: list[dict] | None,
         parent_path: str,
     ) -> dict[Any, list[dict]]:
-        """Internal helper to fetch reverse FK data - used by top-level and nested reverse FK prefetch.
-
-        Uses Django's compiler to execute the query and build nested dicts directly
-        from raw rows - NO model instantiation. The compiler handles select_related
-        automatically via klass_info.
-
-        Args:
-            related_model: The model class for the related objects
-            fk_field_name: The FK field name on the related model
-            relation_name: The relation name for parent_path (e.g., "book_set")
-            nested_relations: List of further nested relations to fetch
-            parent_pks: List of parent primary keys to fetch related data for
-            custom_qs: Optional custom queryset (Prefetch object's queryset), None for nested
-            main_results: Original main query results (for extracting select_related data)
-            parent_path: Path prefix for tracking position in relation chain
-        """
+        """Fetch reverse FK data using compiler. Raw rows → dicts, no model instantiation."""
         related_pk_name = related_model._meta.pk.name
         # Get the FK field's attname (e.g., 'book_id' for FK field 'book')
         fk_field = related_model._meta.get_field(fk_field_name)
@@ -733,22 +718,7 @@ class NestedValuesQuerySetMixin(_MixinBase[_ModelT_co]):
         parent_path: str,
         parent_model: type[Model] | None = None,
     ) -> dict[Any, dict | None]:
-        """Internal helper to fetch FK data - used by both top-level and nested FK prefetch.
-
-        Uses Django's compiler to execute the query and build nested dicts directly
-        from raw rows - NO model instantiation. The compiler handles select_related
-        automatically via klass_info.
-
-        Args:
-            field: The ForeignKey field
-            nested_relations: List of nested relations to fetch
-            parent_pks: List of parent primary keys
-            parent_data: Dict mapping parent pk to row dict (if None, will query for FK values)
-            custom_qs: Custom queryset from Prefetch object (None for nested)
-            main_results: Original main query results (for nested relations)
-            parent_path: Path prefix for tracking position (e.g., "product__")
-            parent_model: Parent model class (needed if parent_data is None)
-        """
+        """Fetch FK data using compiler. Raw rows → dicts, no model instantiation."""
         related_model = field.related_model
         fk_attname = field.attname  # e.g., publisher_id
         relation_name = field.name  # e.g., publisher
@@ -986,16 +956,7 @@ class NestedValuesQuerySetMixin(_MixinBase[_ModelT_co]):
         main_results: list[dict] | None = None,
         parent_path: str = "",
     ) -> None:
-        """Add nested relation data to already-fetched data.
-
-        Args:
-            model: The model class for the current level
-            data: Dict of pk -> row data for items at this level
-            nested_relations: List of nested relation paths to fetch
-            parent_pks: List of primary keys for parent items
-            main_results: Original main query results (for extracting select_related data)
-            parent_path: Path prefix for tracking position in relation chain (e.g., "product__")
-        """
+        """Fetch and add nested relation data to already-fetched parent data."""
         for nested_rel in nested_relations:
             parts = nested_rel.split("__", 1)
             rel_name = parts[0]
@@ -1079,35 +1040,16 @@ class NestedValuesQuerySetMixin(_MixinBase[_ModelT_co]):
                 m2m_field=field,
             )  # type: ignore[return-value]
         if isinstance(field, GenericRelation):
-            return self._fetch_nested_generic_relation(
-                parent_model,
+            return self._fetch_generic_relation_internal(
                 field,
                 further_nested,
                 parent_pks,
+                parent_model,
+                None,
                 main_results,
                 parent_path,
             )  # type: ignore[return-value]
         return {}
-
-    def _fetch_nested_generic_relation(  # noqa: PLR0913
-        self,
-        parent_model: type[Model],
-        field: GenericRelation,
-        further_nested: list[str],
-        parent_pks: list[Any],
-        main_results: list[dict] | None = None,
-        parent_path: str = "",
-    ) -> dict[Any, list[dict]]:
-        """Fetch nested GenericRelation data - delegates to _fetch_generic_relation_internal."""
-        return self._fetch_generic_relation_internal(
-            field,
-            further_nested,
-            parent_pks,
-            parent_model,
-            None,
-            main_results,
-            parent_path,
-        )
 
     def _is_many_relation(self, field: Any) -> bool:
         """Check if a field represents a many-relation."""
