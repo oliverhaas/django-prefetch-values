@@ -32,6 +32,7 @@ Repository = "https://github.com/oliverhaas/django-nested-values.git"
 [dependency-groups]
 dev = [
   "django-stubs==5.2.8",
+  "mypy==1.19.1",
   "pre-commit==4.5.1",
   "pytest==9.0.2",
   "pytest-cov==7.0.0",
@@ -138,3 +139,30 @@ exclude_lines = [
   "if TYPE_CHECKING:",
   "raise NotImplementedError",
 ]
+
+[tool.mypy]
+python_version = "3.13"
+plugins = ["mypy_django_plugin.main"]
+strict = true
+warn_return_any = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_configs = true
+show_error_codes = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+
+[tool.django-stubs]
+django_settings_module = "tests.settings"
+
+[tool.ty.rules]
+# Ignore warnings about unused type: ignore comments (mypy needs them but ty doesn't)
+unused-ignore-comment = "ignore"
