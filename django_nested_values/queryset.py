@@ -26,6 +26,132 @@ else:
     _MixinBase = Generic
 
 
+class RelatedList(list[Any]):
+    """List wrapper that provides .all() method to mimic Django's related manager.
+
+    This allows code like `for book in author.books.all()` to work with nested values,
+    making the results more drop-in compatible with Django ORM patterns.
+    """
+
+    __slots__ = ()
+
+    def all(self) -> Self:
+        """Return self to mimic Django's related manager .all() method."""
+        return self
+
+
+class NestedObject:
+    """Dict wrapper that provides attribute access to mimic Django model instances.
+
+    Supports both attribute access (book.title) and dict access (book["title"]).
+    Nested dicts are wrapped as NestedObject, lists are wrapped as RelatedList.
+
+    Example:
+        >>> obj = NestedObject({"title": "Django", "publisher": {"name": "Pub"}})
+        >>> obj.title
+        'Django'
+        >>> obj["title"]
+        'Django'
+        >>> obj.publisher.name
+        'Pub'
+    """
+
+    __slots__ = ("_data",)
+
+    def __init__(self, data: dict[str, Any]) -> None:
+        """Initialize with a dict. Nested values are wrapped eagerly."""
+        # Wrap nested structures eagerly
+        wrapped: dict[str, Any] = {}
+        for key, value in data.items():
+            wrapped[key] = self._wrap_value(value)
+        object.__setattr__(self, "_data", wrapped)
+
+    @staticmethod
+    def _wrap_value(value: Any) -> Any:
+        """Wrap a value: dicts become NestedObject, lists become RelatedList."""
+        if isinstance(value, dict):
+            return NestedObject(value)
+        if isinstance(value, list):
+            return RelatedList(NestedObject._wrap_value(item) for item in value)
+        return value
+
+    def __getattr__(self, name: str) -> Any:
+        """Get attribute from underlying dict."""
+        try:
+            return self._data[name]
+        except KeyError:
+            raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'") from None
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        """Set attribute in underlying dict."""
+        if name == "_data":
+            object.__setattr__(self, name, value)
+        else:
+            self._data[name] = self._wrap_value(value)
+
+    def __getitem__(self, key: str) -> Any:
+        """Get item from underlying dict."""
+        return self._data[key]
+
+    def __setitem__(self, key: str, value: Any) -> None:
+        """Set item in underlying dict."""
+        self._data[key] = self._wrap_value(value)
+
+    def __contains__(self, key: object) -> bool:
+        """Check if key exists in underlying dict."""
+        return key in self._data
+
+    def __iter__(self) -> Iterator[str]:
+        """Iterate over keys in underlying dict."""
+        return iter(self._data)
+
+    def __len__(self) -> int:
+        """Return number of keys in underlying dict."""
+        return len(self._data)
+
+    def __repr__(self) -> str:
+        """Return repr of underlying dict."""
+        return f"NestedObject({self._data!r})"
+
+    def __eq__(self, other: object) -> bool:
+        """Compare with another NestedObject or dict."""
+        if isinstance(other, NestedObject):
+            return self._data == other._data
+        if isinstance(other, dict):
+            return self._data == other
+        return NotImplemented
+
+    __hash__ = None  # Mutable container, so explicitly unhashable
+
+    def keys(self) -> Any:
+        """Return keys of underlying dict."""
+        return self._data.keys()
+
+    def values(self) -> Any:
+        """Return values of underlying dict."""
+        return self._data.values()
+
+    def items(self) -> Any:
+        """Return items of underlying dict."""
+        return self._data.items()
+
+    def get(self, key: str, default: Any = None) -> Any:
+        """Get item with default from underlying dict."""
+        return self._data.get(key, default)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert back to a plain dict (recursively unwraps nested objects)."""
+        result: dict[str, Any] = {}
+        for key, value in self._data.items():
+            if isinstance(value, NestedObject):
+                result[key] = value.to_dict()
+            elif isinstance(value, RelatedList):
+                result[key] = [item.to_dict() if isinstance(item, NestedObject) else item for item in value]
+            else:
+                result[key] = value
+        return result
+
+
 class NestedValuesIterable(BaseIterable):
     """Iterable that yields nested dictionaries for QuerySet.values_nested().
 
@@ -37,14 +163,16 @@ class NestedValuesIterable(BaseIterable):
         # The queryset is expected to be a NestedValuesQuerySetMixin
         queryset: NestedValuesQuerySetMixin[Any]
 
-    def __iter__(self) -> Iterator[dict[str, Any]]:
-        """Iterate over the queryset, yielding nested dictionaries."""
+    def __iter__(self) -> Iterator[dict[str, Any] | NestedObject]:
+        """Iterate over the queryset, yielding nested dictionaries or NestedObjects."""
         queryset = self.queryset
 
         # Determine which fields to fetch based on .only() / .defer()
         main_fields = queryset._get_main_fields()
         select_related_fields = queryset._get_select_related_fields()
-        prefetch_lookups = queryset._prefetch_related_lookups  # type: ignore[attr-defined]
+        # Use _nested_prefetch_lookups which is set by values_nested() - we clear
+        # _prefetch_related_lookups to prevent Django from double-prefetching
+        prefetch_lookups = getattr(queryset, "_nested_prefetch_lookups", ())
 
         pk_name = queryset.model._meta.pk.name
 
@@ -64,14 +192,18 @@ class NestedValuesIterable(BaseIterable):
         # Fetch prefetched relations (pass main_results to avoid extra queries for FK ids)
         prefetched_data = queryset._fetch_all_prefetched(prefetch_lookups, pk_values, main_results)
 
+        # Check if we should wrap results as NestedObject
+        as_objects = getattr(queryset, "_as_objects", False)
+
         # Build and yield final results
-        yield from queryset._build_results(
+        for row in queryset._build_results(
             main_results,
             main_fields,
             select_related_fields,
             prefetched_data,
             pk_name,
-        )
+        ):
+            yield NestedObject(row) if as_objects else row
 
 
 class NestedValuesQuerySetMixin(_MixinBase[_ModelT_co]):
@@ -92,21 +224,47 @@ class NestedValuesQuerySetMixin(_MixinBase[_ModelT_co]):
     when iterated, similar to Django's values() method.
     """
 
-    def values_nested(self) -> QuerySet[_ModelT_co, dict[str, Any]]:
+    # Custom attributes that should be preserved when cloning
+    _nested_prefetch_lookups: tuple = ()
+    _as_objects: bool = False
+
+    def _clone(self) -> Self:
+        """Clone the queryset, preserving our custom attributes."""
+        clone = super()._clone()
+        # Copy our custom attributes to the clone
+        clone._nested_prefetch_lookups = self._nested_prefetch_lookups
+        clone._as_objects = self._as_objects
+        return clone
+
+    def values_nested(
+        self,
+        as_objects: bool = False,
+    ) -> Self:
         """Return nested dictionaries with related objects included.
 
-        Takes no arguments. Use standard Django methods to control output:
+        Args:
+            as_objects: If True, return NestedObject instances instead of plain dicts.
+                NestedObject supports attribute access (book.title) in addition to
+                dict access (book["title"]), and related lists support .all() to
+                mimic Django's related manager interface.
+
+        Use standard Django methods to control output:
         - .only() to select which fields to include
-        - .select_related() for ForeignKey relations (single dict)
-        - .prefetch_related() for ManyToMany/reverse FK relations (list of dicts)
+        - .select_related() for ForeignKey relations (single dict/object)
+        - .prefetch_related() for ManyToMany/reverse FK relations (list of dicts/objects)
 
         Returns:
-            A QuerySet that yields dict[str, Any] when iterated, with nested
-            dictionaries for related objects.
+            A QuerySet that yields dict[str, Any] or NestedObject when iterated,
+            with nested dictionaries/objects for related objects.
         """
-        clone: Self = self._clone()  # type: ignore[attr-defined]  # _clone is from QuerySet
+        clone: Self = self._clone()
         clone._iterable_class = NestedValuesIterable
-        return clone  # Return type changes from Self to QuerySet[..., dict]
+        clone._as_objects = as_objects
+        # Store prefetch lookups for our own use, then clear them so Django
+        # doesn't try to prefetch on our dict/NestedObject results
+        clone._nested_prefetch_lookups = clone._prefetch_related_lookups  # type: ignore[attr-defined]
+        clone._prefetch_related_lookups = ()  # type: ignore[attr-defined]
+        return clone
 
     def _get_main_fields(self) -> list[str]:
         """Get the fields to fetch for the main model based on .only() / .defer().
