@@ -169,14 +169,14 @@ class RelatedList(list[Any]):
         return self
 
 
-class NestedObject:
+class AttrDict:
     """Dict wrapper that provides attribute access to mimic Django model instances.
 
     Supports both attribute access (book.title) and dict access (book["title"]).
-    Nested dicts are wrapped as NestedObject, lists are wrapped as RelatedList.
+    Nested dicts are wrapped as AttrDict, lists are wrapped as RelatedList.
 
     Example:
-        >>> obj = NestedObject({"title": "Django", "publisher": {"name": "Pub"}})
+        >>> obj = AttrDict({"title": "Django", "publisher": {"name": "Pub"}})
         >>> obj.title
         'Django'
         >>> obj["title"]
@@ -198,11 +198,11 @@ class NestedObject:
 
     @staticmethod
     def _wrap_value(value: Any) -> Any:
-        """Wrap a value: dicts become NestedObject, lists become RelatedList."""
+        """Wrap a value: dicts become AttrDict, lists become RelatedList."""
         if isinstance(value, dict):
-            return NestedObject(value)
+            return AttrDict(value)
         if isinstance(value, list):
-            return RelatedList(NestedObject._wrap_value(item) for item in value)
+            return RelatedList(AttrDict._wrap_value(item) for item in value)
         return value
 
     def __getattr__(self, name: str) -> Any:
@@ -242,11 +242,11 @@ class NestedObject:
 
     def __repr__(self) -> str:
         """Return repr of underlying dict."""
-        return f"NestedObject({self._data!r})"
+        return f"AttrDict({self._data!r})"
 
     def __eq__(self, other: object) -> bool:
-        """Compare with another NestedObject or dict."""
-        if isinstance(other, NestedObject):
+        """Compare with another AttrDict or dict."""
+        if isinstance(other, AttrDict):
             return bool(self._data == other._data)
         if isinstance(other, dict):
             return bool(self._data == other)
@@ -274,10 +274,10 @@ class NestedObject:
         """Convert back to a plain dict (recursively unwraps nested objects)."""
         result: dict[str, Any] = {}
         for key, value in self._data.items():
-            if isinstance(value, NestedObject):
+            if isinstance(value, AttrDict):
                 result[key] = value.to_dict()
             elif isinstance(value, RelatedList):
-                result[key] = [item.to_dict() if isinstance(item, NestedObject) else item for item in value]
+                result[key] = [item.to_dict() if isinstance(item, AttrDict) else item for item in value]
             else:
                 result[key] = value
         return result
@@ -294,8 +294,8 @@ class NestedValuesIterable(BaseIterable):  # type: ignore[type-arg]
         # The queryset is expected to be a NestedValuesQuerySetMixin
         queryset: NestedValuesQuerySetMixin[Any]
 
-    def __iter__(self) -> Iterator[dict[str, Any] | NestedObject]:
-        """Iterate over the queryset, yielding nested dictionaries or NestedObjects."""
+    def __iter__(self) -> Iterator[dict[str, Any] | AttrDict]:
+        """Iterate over the queryset, yielding nested dictionaries or AttrDicts."""
         queryset = self.queryset
         db = queryset.db
         # Use _nested_prefetch_lookups which is set by values_nested() - we clear
@@ -322,12 +322,12 @@ class NestedValuesIterable(BaseIterable):  # type: ignore[type-arg]
         if not main_results:
             return
 
-        # Check if we should wrap results as NestedObject
-        as_objects = getattr(queryset, "_as_objects", False)
+        # Check if we should wrap results as AttrDict
+        as_attr_dicts = getattr(queryset, "_as_attr_dicts", False)
 
         if not prefetch_lookups:
             for row in main_results:
-                yield NestedObject(row) if as_objects else row
+                yield AttrDict(row) if as_attr_dicts else row
             return
 
         pk_name = queryset.model._meta.pk.name
@@ -339,7 +339,7 @@ class NestedValuesIterable(BaseIterable):  # type: ignore[type-arg]
             for attr_name, data_by_pk in prefetched_data.items():
                 prefetch_value = data_by_pk.get(pk, [])
                 self._set_nested_value(row, attr_name, prefetch_value)
-            yield NestedObject(row) if as_objects else row
+            yield AttrDict(row) if as_attr_dicts else row
 
     def _set_nested_value(self, row: dict[str, Any], attr_path: str, value: Any) -> None:
         """Set a value in a nested dict using a path like 'publisher__books'.
@@ -440,40 +440,40 @@ class NestedValuesQuerySetMixin(_MixinBase[_ModelT_co]):
 
     # Custom attributes that should be preserved when cloning
     _nested_prefetch_lookups: tuple[Any, ...] = ()
-    _as_objects: bool = False
+    _as_attr_dicts: bool = False
 
     def _clone(self) -> Self:
         """Clone the queryset, preserving our custom attributes."""
         clone: Self = super()._clone()  # type: ignore[misc]
         # Copy our custom attributes to the clone
         clone._nested_prefetch_lookups = self._nested_prefetch_lookups
-        clone._as_objects = self._as_objects
+        clone._as_attr_dicts = self._as_attr_dicts
         return clone
 
     @overload
     def values_nested(
         self,
         *,
-        as_objects: Literal[False] = ...,
+        as_attr_dicts: Literal[False] = ...,
     ) -> QuerySet[_ModelT_co, dict[str, Any]]: ...
 
     @overload
     def values_nested(
         self,
         *,
-        as_objects: Literal[True],
-    ) -> QuerySet[_ModelT_co, NestedObject]: ...
+        as_attr_dicts: Literal[True],
+    ) -> QuerySet[_ModelT_co, AttrDict]: ...
 
     def values_nested(
         self,
         *,
-        as_objects: bool = False,
-    ) -> QuerySet[_ModelT_co, dict[str, Any]] | QuerySet[_ModelT_co, NestedObject]:
+        as_attr_dicts: bool = False,
+    ) -> QuerySet[_ModelT_co, dict[str, Any]] | QuerySet[_ModelT_co, AttrDict]:
         """Return nested dictionaries with related objects included.
 
         Args:
-            as_objects: If True, return NestedObject instances instead of plain dicts.
-                NestedObject supports attribute access (book.title) in addition to
+            as_attr_dicts: If True, return AttrDict instances instead of plain dicts.
+                AttrDict supports attribute access (book.title) in addition to
                 dict access (book["title"]), and related lists support .all() to
                 mimic Django's related manager interface.
 
@@ -483,15 +483,15 @@ class NestedValuesQuerySetMixin(_MixinBase[_ModelT_co]):
         - .prefetch_related() for ManyToMany/reverse FK relations (list of dicts/objects)
 
         Returns:
-            A QuerySet that yields dict[str, Any] or NestedObject when iterated,
+            A QuerySet that yields dict[str, Any] or AttrDict when iterated,
             with nested dictionaries/objects for related objects.
 
         """
         clone: Self = self._clone()  # type: ignore[assignment]
         clone._iterable_class = NestedValuesIterable
-        clone._as_objects = as_objects
+        clone._as_attr_dicts = as_attr_dicts
         # Store prefetch lookups for our own use, then clear them so Django
-        # doesn't try to prefetch on our dict/NestedObject results
+        # doesn't try to prefetch on our dict/AttrDict results
         clone._nested_prefetch_lookups = clone._prefetch_related_lookups  # type: ignore[attr-defined]
         clone._prefetch_related_lookups = ()  # type: ignore[attr-defined]
         return clone  # type: ignore[return-value]

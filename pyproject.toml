@@ -63,7 +63,7 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 explicit-preview-rules = true
 fixable = ["ALL"]
 ignore = [
-  "ANN401", # Any needed for NestedObject's dynamic attribute access
+  "ANN401", # Any needed for AttrDict's dynamic attribute access
   "COM812", # Conflicts with ruff-format
   "E5",     # 120 char limit is sufficient
   "SLF001", # Private member access needed for Django internals

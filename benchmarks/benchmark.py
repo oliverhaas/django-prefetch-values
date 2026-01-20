@@ -185,6 +185,17 @@ def benchmark_prefetch_values_nested():
     return result
 
 
+def benchmark_prefetch_values_nested_attr_dicts():
+    """Benchmark: Fetch with values_nested(as_attr_dicts=True) - with attribute access wrappers."""
+    qs = NestedValuesQuerySet(model=Book)
+    result = list(
+        qs.select_related("publisher")
+        .prefetch_related("authors", "tags", "chapters", "reviews")
+        .values_nested(as_attr_dicts=True),
+    )
+    return result
+
+
 def benchmark_values_only():
     """Benchmark: Standard values() without prefetch (loses relations)."""
     result = list(
@@ -251,6 +262,7 @@ def main():
     print("Warming up...")
     benchmark_normal_prefetch()
     benchmark_prefetch_values_nested()
+    benchmark_prefetch_values_nested_attr_dicts()
     benchmark_values_only()
 
     print("\nRunning benchmarks...\n")
@@ -263,7 +275,10 @@ def main():
     # Benchmark 2: Our select_related/prefetch_related().values_nested()
     results.append(run_benchmark("values_nested()", benchmark_prefetch_values_nested))
 
-    # Benchmark 3: Standard values() (for reference, but loses M2M/reverse FK)
+    # Benchmark 3: values_nested(as_attr_dicts=True) with AttrDict wrappers
+    results.append(run_benchmark("values_nested(as_attr_dicts=True)", benchmark_prefetch_values_nested_attr_dicts))
+
+    # Benchmark 4: Standard values() (for reference, but loses M2M/reverse FK)
     results.append(run_benchmark("Standard values() (no M2M)", benchmark_values_only))
 
     # Print results

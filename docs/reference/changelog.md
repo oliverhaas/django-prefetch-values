@@ -2,8 +2,8 @@
 
 ## [Unreleased]
 
-- **New**: `as_objects` parameter for `values_nested()` returns `NestedObject` instances with attribute access
-- **New**: `NestedObject` class supports both attribute (`obj.field`) and dict (`obj["field"]`) access
+- **New**: `as_attr_dicts` parameter for `values_nested()` returns `AttrDict` instances with attribute access
+- **New**: `AttrDict` class supports both attribute (`obj.field`) and dict (`obj["field"]`) access
 - **New**: `RelatedList` class for related collections with `.all()` method for Django-like iteration
 
 ## [0.4.0]

@@ -58,7 +58,7 @@ Returns dictionaries with related objects included as nested dicts/lists.
 
 **Parameters:**
 
-- `as_objects` (bool, default `False`): If `True`, returns `NestedObject` instances instead of plain dicts.
+- `as_attr_dicts` (bool, default `False`): If `True`, returns `AttrDict` instances instead of plain dicts.
 
 Use standard Django methods to control the output:
 
@@ -182,14 +182,14 @@ Book.objects.prefetch_related(
 # {"id": 1, "title": "...", "first_chapter": [{"id": 1, "title": "Introduction"}]}
 ```
 
-## Object-Style Access
+## Attribute-Style Access
 
-### as_objects Parameter
+### as_attr_dicts Parameter
 
-Use `as_objects=True` to get `NestedObject` instances instead of plain dicts:
+Use `as_attr_dicts=True` to get `AttrDict` instances instead of plain dicts:
 
 ```python
-books = Book.objects.select_related("publisher").prefetch_related("authors").values_nested(as_objects=True)
+books = Book.objects.select_related("publisher").prefetch_related("authors").values_nested(as_attr_dicts=True)
 for book in books:
     print(book.title)           # Attribute access
     print(book["title"])        # Dict access still works
@@ -198,14 +198,14 @@ for book in books:
         print(author.name)
 ```
 
-### NestedObject
+### AttrDict
 
 A dict wrapper that supports both attribute access (`obj.field`) and dict access (`obj["field"]`).
 
 ```python
-from django_nested_values import NestedObject
+from django_nested_values import AttrDict
 
-obj = NestedObject({"title": "Django", "publisher": {"name": "Pub"}})
+obj = AttrDict({"title": "Django", "publisher": {"name": "Pub"}})
 obj.title           # "Django"
 obj["title"]        # "Django"
 obj.publisher.name  # "Pub" (nested dicts are also wrapped)
@@ -213,7 +213,7 @@ obj.publisher.name  # "Pub" (nested dicts are also wrapped)
 
 **Methods:**
 
-- `to_dict()` - Convert back to a plain dict (recursively unwraps nested objects)
+- `to_dict()` - Convert back to a plain dict (recursively unwraps nested AttrDicts)
 - `keys()`, `values()`, `items()`, `get()` - Standard dict methods
 
 ### RelatedList

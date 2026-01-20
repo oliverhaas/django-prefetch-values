@@ -31,7 +31,7 @@ books = (
 - **ForeignKey via JOIN**: `select_related()` uses efficient single-query JOINs
 - **M2M/Reverse FK via prefetch**: `prefetch_related()` for multi-valued relations
 - **No model instantiation**: Returns dicts directly from the database
-- **Object-style access**: Optional `as_objects=True` for attribute access (`book.title`) alongside dict access
+- **Attribute-style access**: Optional `as_attr_dicts=True` for attribute access (`book.title`) alongside dict access
 
 ## Requirements
 
