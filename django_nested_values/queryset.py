@@ -113,6 +113,54 @@ def _execute_queryset_as_dicts(
     return [_build_dict_from_klass_info(row, klass_info, select) for row in compiler.results_iter(results)]
 
 
+def _execute_prefetch_as_dicts(
+    queryset: QuerySet,
+    db: str,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Execute a prefetch queryset and return (dicts, extra_values).
+
+    This is similar to _execute_queryset_as_dicts but also extracts the extra
+    columns that Django adds for prefetch grouping (like _prefetch_related_val_*).
+
+    Returns:
+        Tuple of (list of model dicts, list of extra column dicts for grouping)
+    """
+    compiler = queryset.query.get_compiler(using=db)
+    results = compiler.execute_sql()
+
+    if results is None:
+        return [], []
+
+    select = compiler.select
+    klass_info = compiler.klass_info
+
+    if klass_info is None:
+        return [], []
+
+    # Find extra column indices (columns with _prefetch_related_val_* alias)
+    # Extra columns from .extra() have format: (RawSQL, (sql, params), alias)
+    extra_indices = [
+        (i, s[2])
+        for i, s in enumerate(select)
+        if len(s) >= 3 and s[2] and s[2].startswith("_prefetch_related_val_")  # noqa: PLR2004
+    ]
+
+    dicts = []
+    extra_values = []
+
+    for row in compiler.results_iter(results):
+        # Build the model dict from klass_info
+        row_dict = _build_dict_from_klass_info(row, klass_info, select)
+
+        # Extract extra column values for grouping
+        extra_vals = {alias: row[idx] for idx, alias in extra_indices}
+
+        dicts.append(row_dict)
+        extra_values.append(extra_vals)
+
+    return dicts, extra_values
+
+
 class NestedValuesIterable(BaseIterable):
     """Iterable that yields nested dictionaries for QuerySet.values_nested().
 
@@ -302,23 +350,6 @@ class NestedValuesQuerySetMixin(_MixinBase[_ModelT_co]):
         clone._iterable_class = NestedValuesIterable
         return clone  # Return type changes from Self to QuerySet[..., dict]
 
-    def _get_related_model_for_path(self, path: str) -> type[Model] | None:
-        """Get the related model for a relation path like 'book__publisher'."""
-        parts = path.split("__")
-        current_model = self.model
-
-        for part in parts:
-            try:
-                rel_field = current_model._meta.get_field(part)
-                if isinstance(rel_field, ForeignKey):
-                    current_model = rel_field.related_model
-                else:
-                    return None
-            except FieldDoesNotExist:
-                return None
-
-        return current_model
-
     def _build_main_queryset(self) -> QuerySet:
         """Build a fresh queryset for the main query."""
         main_qs = self.model._default_manager.using(self.db).all()
@@ -411,33 +442,74 @@ class NestedValuesQuerySetMixin(_MixinBase[_ModelT_co]):
     ) -> dict[Any, list[dict] | dict | None]:
         """Fetch a related model's data and group by parent PK."""
         # Get the actual relation name (may differ from attr_name if to_attr is used)
-        if isinstance(lookup, Prefetch):
-            relation_name = lookup.prefetch_through.split("__")[0]
-        else:
-            relation_name = lookup.split("__")[0]
+        relation_name = (
+            lookup.prefetch_through.split("__")[0] if isinstance(lookup, Prefetch) else lookup.split("__")[0]
+        )
 
-        # Find the relation field
         try:
             field = self.model._meta.get_field(relation_name)
         except FieldDoesNotExist:
             return {}
 
-        # Get the custom queryset if using Prefetch
-        custom_qs = None
-        if isinstance(lookup, Prefetch) and lookup.queryset is not None:
-            custom_qs = lookup.queryset
+        custom_qs = lookup.queryset if isinstance(lookup, Prefetch) and lookup.queryset is not None else None
 
-        # Fetch based on relation type
+        # Dispatch to internal methods directly
         if isinstance(field, ManyToManyField):
-            return self._fetch_m2m_values(field, nested_relations, parent_pks, custom_qs, main_results)  # type: ignore[return-value]
+            return self._fetch_m2m_internal(
+                cast("type[Model]", field.related_model),
+                field.related_query_name(),
+                field.name,
+                nested_relations,
+                parent_pks,
+                custom_qs,
+                main_results,
+                "",
+                field,
+            )  # type: ignore[return-value]
         if isinstance(field, ManyToOneRel):
-            return self._fetch_reverse_fk_values(field, nested_relations, parent_pks, custom_qs, main_results)  # type: ignore[return-value]
+            return self._fetch_reverse_fk_internal(
+                cast("type[Model]", field.related_model),
+                field.field.name,
+                field.get_accessor_name() or field.name,
+                nested_relations,
+                parent_pks,
+                custom_qs,
+                main_results,
+                "",
+            )  # type: ignore[return-value]
         if isinstance(field, ForeignKey):
-            return self._fetch_fk_values(field, nested_relations, parent_pks, main_results, custom_qs)  # type: ignore[return-value]
+            pk_name = self.model._meta.pk.name
+            return self._fetch_fk_internal(
+                field,
+                nested_relations,
+                parent_pks,
+                {r[pk_name]: r for r in main_results},
+                custom_qs,
+                main_results,
+                "",
+            )  # type: ignore[return-value]
         if isinstance(field, ManyToManyRel):
-            return self._fetch_reverse_m2m_values(field, nested_relations, parent_pks, custom_qs, main_results)  # type: ignore[return-value]
+            return self._fetch_m2m_internal(
+                cast("type[Model]", field.related_model),
+                field.field.name,
+                field.get_accessor_name() or field.name,
+                nested_relations,
+                parent_pks,
+                custom_qs,
+                main_results,
+                "",
+                field,
+            )  # type: ignore[return-value]
         if isinstance(field, GenericRelation):
-            return self._fetch_generic_relation_values(field, nested_relations, parent_pks, custom_qs, main_results)  # type: ignore[return-value]
+            return self._fetch_generic_relation_internal(
+                field,
+                nested_relations,
+                parent_pks,
+                self.model,
+                custom_qs,
+                main_results,
+                "",
+            )  # type: ignore[return-value]
 
         return {}
 
@@ -497,17 +569,6 @@ class NestedValuesQuerySetMixin(_MixinBase[_ModelT_co]):
 
         Uses Django's compiler with .extra() annotation to match Django's native
         prefetch_related behavior. Raw rows → dicts, no model instantiation.
-
-        Args:
-            related_model: The model class for the related objects
-            accessor: The field name for filtering (e.g., "book" for reverse query name)
-            relation_name: The relation name for parent_path (e.g., "books", "authors")
-            nested_relations: List of further nested relations to fetch
-            parent_pks: List of parent primary keys to fetch related data for
-            custom_qs: Optional custom queryset (Prefetch object's queryset), None for nested
-            main_results: Original main query results (for extracting select_related data)
-            parent_path: Path prefix for tracking position in relation chain
-            m2m_field: The M2M field (ManyToManyField or ManyToManyRel) for through table info
         """
         from django.db import connections
 
@@ -522,86 +583,59 @@ class NestedValuesQuerySetMixin(_MixinBase[_ModelT_co]):
         # Get the actual ManyToManyField (for ManyToManyRel, it's in .field)
         actual_field = m2m_field.field if isinstance(m2m_field, ManyToManyRel) else m2m_field
 
-        # Get through table info (always exists for M2M fields)
+        # Get through table info and add extra select for parent FK (matching Django's approach)
         through_model = actual_field.remote_field.through
         assert through_model is not None  # noqa: S101
-        # Determine which FK to use from the through table:
-        # - Forward M2M (Book.authors): parent is Book, use m2m_field_name() = "book"
-        # - Reverse M2M (Author.books): parent is Author, use m2m_reverse_name() = "author"
-        if isinstance(m2m_field, ManyToManyRel):
-            # Reverse M2M: parent is the target model, use reverse FK
-            source_field_name = actual_field.m2m_reverse_name()
-        else:
-            # Forward M2M: parent is the source model, use source FK
-            source_field_name = actual_field.m2m_field_name()
+        # Determine which FK to use: Forward M2M uses m2m_field_name(), Reverse M2M uses m2m_reverse_name()
+        source_field_name = (
+            actual_field.m2m_reverse_name() if isinstance(m2m_field, ManyToManyRel) else actual_field.m2m_field_name()
+        )
         fk = cast("ForeignKey[Any, Any]", through_model._meta.get_field(source_field_name))
         join_table = through_model._meta.db_table
-        connection = connections[self.db]
-        qn = connection.ops.quote_name
+        qn = connections[self.db].ops.quote_name
 
-        # Add extra select for parent FK (matching Django's approach)
         extra_select = {
             f"_prefetch_related_val_{f.attname}": f"{qn(join_table)}.{qn(f.column)}" for f in fk.local_related_fields
         }
         related_qs = related_qs.extra(select=extra_select)  # noqa: S610  # safe: identifiers quoted via qn()
 
-        # Execute with compiler
-        compiler = related_qs.query.get_compiler(using=self.db)
-        results = compiler.execute_sql()
+        # Execute with compiler and extract model dicts + extra columns
+        dicts, extra_values = _execute_prefetch_as_dicts(related_qs, self.db)
 
-        if results is None:
+        if not dicts:
             return {pk: [] for pk in parent_pks}
 
-        select = compiler.select
-        klass_info = compiler.klass_info
-
-        if klass_info is None:
-            return {pk: [] for pk in parent_pks}
-
-        # Find the extra column indices by looking for their aliases in select
-        # Extra columns from .extra(select={...}) appear at the start of select
-        # Extra columns have format (expr, sql_tuple, alias) - 3 elements with alias at index 2
-        extra_col_indices = [
-            i
-            for i, s in enumerate(select)
-            if len(s) >= 3 and s[2] in extra_select  # noqa: PLR2004
-        ]
-
-        # Group by parent PK
+        # Group by parent PK (from extra column)
         result: dict[Any, list[dict]] = {pk: [] for pk in parent_pks}
         related_data: dict[Any, dict] = {}
 
-        for row in compiler.results_iter(results):
-            # Build nested dict from klass_info (handles select_related automatically!)
-            row_dict = _build_dict_from_klass_info(row, klass_info, select)
+        for row_dict, extra_vals in zip(dicts, extra_values, strict=True):
+            # Get parent PK from first extra column
+            source_pk = next(iter(extra_vals.values())) if extra_vals else None
+            if source_pk in result:
+                result[source_pk].append(row_dict)
+
+            # Track for nested relations
             related_pk = row_dict.get(related_pk_name)
-
-            # Get parent PK from extra column (first extra column contains parent FK)
-            source_pk = row[extra_col_indices[0]]
-
-            result[source_pk].append(row_dict)
-
             if nested_relations and related_pk not in related_data:
                 related_data[related_pk] = row_dict
 
         # Handle nested relations
         if nested_relations and related_data:
-            # Get select_related paths to filter out already-handled relations
             select_related_paths = self._get_select_related_from_queryset(custom_qs)
             remaining_nested = [rel for rel in nested_relations if rel.split("__")[0] not in select_related_paths]
             if remaining_nested:
                 full_path = f"{parent_path}{relation_name}" if parent_path else relation_name
-                new_parent_path = f"{full_path}__"
                 self._add_nested_relations(
                     related_model,
                     related_data,
                     remaining_nested,
                     list(related_data.keys()),
                     main_results,
-                    new_parent_path,
+                    f"{full_path}__",
                 )
                 # Update results with nested data
-                for source_pk, items in result.items():
+                for items in result.values():
                     for item in items:
                         pk_val = item.get(related_pk_name)
                         if pk_val and pk_val in related_data:
@@ -610,27 +644,6 @@ class NestedValuesQuerySetMixin(_MixinBase[_ModelT_co]):
                                     item[key] = val
 
         return result
-
-    def _fetch_m2m_values(
-        self,
-        field: ManyToManyField,
-        nested_relations: list[str],
-        parent_pks: list[Any],
-        custom_qs: QuerySet | None,
-        main_results: list[dict] | None = None,
-    ) -> dict[Any, list[dict]]:
-        """Fetch ManyToMany relation data - delegates to _fetch_m2m_internal."""
-        return self._fetch_m2m_internal(
-            related_model=field.related_model,
-            accessor=field.related_query_name(),
-            relation_name=field.name,
-            nested_relations=nested_relations,
-            parent_pks=parent_pks,
-            custom_qs=custom_qs,
-            main_results=main_results,
-            parent_path="",
-            m2m_field=field,
-        )
 
     def _fetch_reverse_fk_internal(  # noqa: PLR0913
         self,
@@ -708,49 +721,6 @@ class NestedValuesQuerySetMixin(_MixinBase[_ModelT_co]):
                 result[parent_pk].append(row_dict)
 
         return result
-
-    def _fetch_reverse_fk_values(
-        self,
-        field: ManyToOneRel,
-        nested_relations: list[str],
-        parent_pks: list[Any],
-        custom_qs: QuerySet | None,
-        main_results: list[dict] | None = None,
-    ) -> dict[Any, list[dict]]:
-        """Fetch reverse ForeignKey relation data - delegates to _fetch_reverse_fk_internal."""
-        return self._fetch_reverse_fk_internal(
-            related_model=field.related_model,
-            fk_field_name=field.field.name,
-            relation_name=field.get_accessor_name() or field.name,
-            nested_relations=nested_relations,
-            parent_pks=parent_pks,
-            custom_qs=custom_qs,
-            main_results=main_results,
-            parent_path="",
-        )
-
-    def _fetch_fk_values(
-        self,
-        field: ForeignKey,
-        nested_relations: list[str],
-        parent_pks: list[Any],
-        main_results: list[dict],
-        custom_qs: QuerySet | None,
-    ) -> dict[Any, dict | None]:
-        """Fetch ForeignKey relation data (when using prefetch_related, not select_related)."""
-        # Convert main_results to parent_data format for unified handling
-        pk_name = self.model._meta.pk.name
-        parent_data = {r[pk_name]: r for r in main_results}
-
-        return self._fetch_fk_internal(
-            field=field,
-            nested_relations=nested_relations,
-            parent_pks=parent_pks,
-            parent_data=parent_data,
-            custom_qs=custom_qs,
-            main_results=main_results,
-            parent_path="",
-        )
 
     def _fetch_fk_internal(  # noqa: PLR0913
         self,
@@ -852,84 +822,51 @@ class NestedValuesQuerySetMixin(_MixinBase[_ModelT_co]):
 
         return result
 
-    def _fetch_reverse_m2m_values(
-        self,
-        field: ManyToManyRel,
-        nested_relations: list[str],
-        parent_pks: list[Any],
-        custom_qs: QuerySet | None,
-        main_results: list[dict] | None = None,
-    ) -> dict[Any, list[dict]]:
-        """Fetch reverse ManyToMany relation data - delegates to _fetch_m2m_internal."""
-        return self._fetch_m2m_internal(
-            related_model=field.related_model,
-            accessor=field.field.name,  # Forward M2M field name on related model
-            relation_name=field.get_accessor_name() or field.name,
-            nested_relations=nested_relations,
-            parent_pks=parent_pks,
-            custom_qs=custom_qs,
-            main_results=main_results,
-            parent_path="",
-            m2m_field=field,
-        )
-
-    def _fetch_generic_relation_values(
+    def _fetch_generic_relation_internal(  # noqa: PLR0913
         self,
         field: GenericRelation,
         nested_relations: list[str],
         parent_pks: list[Any],
+        parent_model: type[Model],
         custom_qs: QuerySet | None,
-        main_results: list[dict] | None = None,
+        main_results: list[dict] | None,
+        parent_path: str,
     ) -> dict[Any, list[dict]]:
-        """Fetch GenericRelation data (content types framework).
-
-        Uses Django's compiler to execute the query and build nested dicts
-        directly from raw row tuples - no model instantiation.
-        """
+        """Internal helper to fetch GenericRelation data - used by top-level and nested."""
         related_model = field.related_model
-        ct_field_name = field.content_type_field_name  # Usually "content_type"
-        obj_id_field_name = field.object_id_field_name  # Usually "object_id"
+        ct_field_name = field.content_type_field_name
+        obj_id_field_name = field.object_id_field_name
         related_pk_name = related_model._meta.pk.name
 
-        # Get the ContentType for the parent model
-        parent_ct = ContentType.objects.get_for_model(self.model)
+        parent_ct = ContentType.objects.get_for_model(parent_model)
+        filter_kwargs = {ct_field_name: parent_ct, f"{obj_id_field_name}__in": parent_pks}
 
-        # Build queryset - filter by content_type and object_id
         if custom_qs is not None:
-            related_qs = custom_qs.filter(
-                **{ct_field_name: parent_ct, f"{obj_id_field_name}__in": parent_pks},
-            )
+            related_qs = custom_qs.filter(**filter_kwargs)
         else:
-            related_qs = related_model._default_manager.filter(
-                **{ct_field_name: parent_ct, f"{obj_id_field_name}__in": parent_pks},
-            )
+            related_qs = related_model._default_manager.filter(**filter_kwargs)
 
-        # Execute with compiler - handles select_related automatically!
         related_data = _execute_queryset_as_dicts(related_qs, self.db)
 
-        # Handle nested relations
         if nested_relations and related_data:
             related_pks = [r[related_pk_name] for r in related_data]
             nested_dict = {r[related_pk_name]: r for r in related_data}
-            parent_path = f"{field.name}__"
+            full_path = f"{parent_path}{field.name}" if parent_path else field.name
             self._add_nested_relations(
                 related_model,
                 nested_dict,
                 nested_relations,
                 related_pks,
                 main_results,
-                parent_path,
+                f"{full_path}__",
             )
             related_data = list(nested_dict.values())
 
-        # Group by parent PK (object_id)
         result: dict[Any, list[dict]] = {pk: [] for pk in parent_pks}
         for row in related_data:
             parent_pk = row[obj_id_field_name]
             row_dict = dict(row)
-            # Remove the object_id field from output (it's the parent PK, not useful in nested output)
             row_dict.pop(obj_id_field_name, None)
-            # Also remove content_type_id if present (internal FK, not useful)
             row_dict.pop(f"{ct_field_name}_id", None)
             result[parent_pk].append(row_dict)
 
@@ -1040,118 +977,6 @@ class NestedValuesQuerySetMixin(_MixinBase[_ModelT_co]):
 
         return temp_qs._fetch_all_prefetched(prefetch_lookups, parent_pks, main_results)
 
-    def _extract_nested_fk_from_main_results(
-        self,
-        main_results: list[dict],
-        full_path: str,
-        related_model: type[Model],
-        parent_pks: list[Any],
-    ) -> dict[Any, dict]:
-        """Extract nested FK data that was already fetched via select_related.
-
-        When a nested FK is fetched via select_related (e.g., "product__master"),
-        the data is already in main_results with keys like "product__master__field".
-        This extracts that data into a dict keyed by the related object's PK.
-
-        Args:
-            main_results: The original main query results
-            full_path: The full path to the relation (e.g., "product__master")
-            related_model: The related model class
-            parent_pks: List of parent PKs (not used but kept for consistency)
-
-        Returns:
-            Dict mapping related object PK to its data dict
-        """
-        related_pk_name = related_model._meta.pk.name
-        prefix = f"{full_path}__"
-
-        result: dict[Any, dict] = {}
-
-        for row in main_results:
-            # Extract all fields with this path prefix
-            related_dict: dict[str, Any] = {}
-            for key, value in row.items():
-                if key.startswith(prefix):
-                    field_name = key[len(prefix) :]
-                    # Skip further nested relations (contain another __)
-                    if "__" not in field_name:
-                        related_dict[field_name] = value
-
-            # Get the related object's PK
-            related_pk = related_dict.get(related_pk_name)
-            if related_pk is not None and related_pk not in result:
-                result[related_pk] = related_dict
-
-        return result
-
-    def _map_nested_fk_to_parents(
-        self,
-        main_results: list[dict],
-        full_path: str,
-        related_model: type[Model],
-        parent_pks: list[Any],
-        related_data: dict[Any, dict],
-    ) -> dict[Any, dict | None]:
-        """Map nested FK data back to parent PKs using main_results.
-
-        When using select_related, we need to map parent objects to their
-        related FK objects using the data in main_results.
-
-        Args:
-            main_results: The original main query results
-            full_path: The full path to the relation (e.g., "product__master")
-            related_model: The related model class
-            parent_pks: List of parent PKs
-            related_data: Dict of related PK -> data (may include nested relations)
-
-        Returns:
-            Dict mapping parent PK to related object data (or None)
-        """
-        related_pk_name = related_model._meta.pk.name
-        pk_field_key = f"{full_path}__{related_pk_name}"
-
-        # Build mapping from parent_pk to related_pk
-        # We need to find the parent PK in main_results and map it to the related PK
-        # The parent is one level up from full_path
-
-        # Parse the path to find parent path
-        path_parts = full_path.split("__")
-        if len(path_parts) == 1:
-            # Direct relation from main model - use main model's PK
-            main_pk_name = self.model._meta.pk.name
-            parent_to_related: dict[Any, Any] = {}
-            for row in main_results:
-                parent_pk = row.get(main_pk_name)
-                related_pk = row.get(pk_field_key)
-                if parent_pk is not None:
-                    parent_to_related[parent_pk] = related_pk
-        else:
-            # Nested relation - parent is the previous level
-            parent_path = "__".join(path_parts[:-1])
-            parent_model = self._get_related_model_for_path(parent_path)
-            if parent_model is None:
-                return dict.fromkeys(parent_pks)
-            parent_pk_name = parent_model._meta.pk.name
-            parent_pk_field = f"{parent_path}__{parent_pk_name}"
-
-            parent_to_related = {}
-            for row in main_results:
-                parent_pk = row.get(parent_pk_field)
-                related_pk = row.get(pk_field_key)
-                if parent_pk is not None:
-                    parent_to_related[parent_pk] = related_pk
-
-        # Map parent_pks to related data
-        result: dict[Any, dict | None] = {}
-        for parent_pk in parent_pks:
-            related_pk = parent_to_related.get(parent_pk)
-            if related_pk is not None and related_pk in related_data:
-                result[parent_pk] = dict(related_data[related_pk])
-            else:
-                result[parent_pk] = None
-
-        return result
-
     def _add_nested_relations(  # noqa: PLR0913
         self,
         model: type[Model],
@@ -1206,47 +1031,52 @@ class NestedValuesQuerySetMixin(_MixinBase[_ModelT_co]):
         parent_path: str = "",
         parent_data: dict[Any, dict] | None = None,
     ) -> dict[Any, list[dict] | dict | None]:
-        """Fetch a nested relation for already-fetched data.
-
-        Args:
-            parent_model: The parent model class
-            field: The field object for the relation
-            relation_name: Name of the relation
-            further_nested: List of further nested relations to fetch
-            parent_pks: List of parent primary keys
-            main_results: Original main query results (for extracting select_related data)
-            parent_path: Path prefix for tracking position in relation chain
-            parent_data: Already-fetched parent data (pk -> row dict) to avoid re-querying
-        """
+        """Fetch a nested relation for already-fetched data."""
         if isinstance(field, ManyToManyField):
-            return self._fetch_nested_m2m(parent_model, field, further_nested, parent_pks, main_results, parent_path)  # type: ignore[return-value]
+            return self._fetch_m2m_internal(
+                related_model=field.related_model,
+                accessor=field.related_query_name(),
+                relation_name=field.name,
+                nested_relations=further_nested,
+                parent_pks=parent_pks,
+                custom_qs=None,
+                main_results=main_results,
+                parent_path=parent_path,
+                m2m_field=field,
+            )  # type: ignore[return-value]
         if isinstance(field, ManyToOneRel):
-            return self._fetch_nested_reverse_fk(
-                parent_model,
-                field,
-                further_nested,
-                parent_pks,
-                main_results,
-                parent_path,
+            return self._fetch_reverse_fk_internal(
+                related_model=field.related_model,
+                fk_field_name=field.field.name,
+                relation_name=field.get_accessor_name() or field.name,
+                nested_relations=further_nested,
+                parent_pks=parent_pks,
+                custom_qs=None,
+                main_results=main_results,
+                parent_path=parent_path,
             )  # type: ignore[return-value]
         if isinstance(field, ForeignKey):
-            return self._fetch_nested_fk(
-                parent_model,
-                field,
-                further_nested,
-                parent_pks,
-                main_results,
-                parent_path,
-                parent_data,
+            return self._fetch_fk_internal(
+                field=field,
+                nested_relations=further_nested,
+                parent_pks=parent_pks,
+                parent_data=parent_data,
+                custom_qs=None,
+                main_results=main_results,
+                parent_path=parent_path,
+                parent_model=parent_model,
             )  # type: ignore[return-value]
         if isinstance(field, ManyToManyRel):
-            return self._fetch_nested_reverse_m2m(
-                parent_model,
-                field,
-                further_nested,
-                parent_pks,
-                main_results,
-                parent_path,
+            return self._fetch_m2m_internal(
+                related_model=field.related_model,
+                accessor=field.field.name,
+                relation_name=field.get_accessor_name() or field.name,
+                nested_relations=further_nested,
+                parent_pks=parent_pks,
+                custom_qs=None,
+                main_results=main_results,
+                parent_path=parent_path,
+                m2m_field=field,
             )  # type: ignore[return-value]
         if isinstance(field, GenericRelation):
             return self._fetch_nested_generic_relation(
@@ -1259,93 +1089,6 @@ class NestedValuesQuerySetMixin(_MixinBase[_ModelT_co]):
             )  # type: ignore[return-value]
         return {}
 
-    def _fetch_nested_m2m(  # noqa: PLR0913
-        self,
-        parent_model: type[Model],
-        field: ManyToManyField,
-        further_nested: list[str],
-        parent_pks: list[Any],
-        main_results: list[dict] | None = None,
-        parent_path: str = "",
-    ) -> dict[Any, list[dict]]:
-        """Fetch nested ManyToMany data - delegates to _fetch_m2m_internal."""
-        return self._fetch_m2m_internal(
-            related_model=field.related_model,
-            accessor=field.related_query_name(),
-            relation_name=field.name,
-            nested_relations=further_nested,
-            parent_pks=parent_pks,
-            custom_qs=None,  # Nested prefetch doesn't support custom querysets
-            main_results=main_results,
-            parent_path=parent_path,
-            m2m_field=field,
-        )
-
-    def _fetch_nested_reverse_fk(  # noqa: PLR0913
-        self,
-        parent_model: type[Model],
-        field: ManyToOneRel,
-        further_nested: list[str],
-        parent_pks: list[Any],
-        main_results: list[dict] | None = None,
-        parent_path: str = "",
-    ) -> dict[Any, list[dict]]:
-        """Fetch nested reverse ForeignKey data - delegates to _fetch_reverse_fk_internal."""
-        return self._fetch_reverse_fk_internal(
-            related_model=field.related_model,
-            fk_field_name=field.field.name,
-            relation_name=field.get_accessor_name() or field.name,
-            nested_relations=further_nested,
-            parent_pks=parent_pks,
-            custom_qs=None,  # Nested prefetch doesn't support custom querysets
-            main_results=main_results,
-            parent_path=parent_path,
-        )
-
-    def _fetch_nested_fk(  # noqa: PLR0913
-        self,
-        parent_model: type[Model],
-        field: ForeignKey,
-        further_nested: list[str],
-        parent_pks: list[Any],
-        main_results: list[dict] | None = None,
-        parent_path: str = "",
-        parent_data: dict[Any, dict] | None = None,
-    ) -> dict[Any, dict | None]:
-        """Fetch nested ForeignKey data - delegates to _fetch_fk_internal."""
-        return self._fetch_fk_internal(
-            field=field,
-            nested_relations=further_nested,
-            parent_pks=parent_pks,
-            parent_data=parent_data,
-            custom_qs=None,  # Nested prefetch doesn't support custom querysets
-            main_results=main_results,
-            parent_path=parent_path,
-            parent_model=parent_model,
-        )
-
-    def _fetch_nested_reverse_m2m(  # noqa: PLR0913
-        self,
-        parent_model: type[Model],
-        field: ManyToManyRel,
-        further_nested: list[str],
-        parent_pks: list[Any],
-        main_results: list[dict] | None = None,
-        parent_path: str = "",
-    ) -> dict[Any, list[dict]]:
-        """Fetch nested reverse ManyToMany data - delegates to _fetch_m2m_internal."""
-        return self._fetch_m2m_internal(
-            related_model=field.related_model,
-            accessor=field.field.name,  # Forward M2M field name on related model
-            relation_name=field.get_accessor_name() or field.name,
-            nested_relations=further_nested,
-            parent_pks=parent_pks,
-            custom_qs=None,  # Nested prefetch doesn't support custom querysets
-            main_results=main_results,
-            parent_path=parent_path,
-            m2m_field=field,
-        )
-
     def _fetch_nested_generic_relation(  # noqa: PLR0913
         self,
         parent_model: type[Model],
@@ -1355,48 +1098,16 @@ class NestedValuesQuerySetMixin(_MixinBase[_ModelT_co]):
         main_results: list[dict] | None = None,
         parent_path: str = "",
     ) -> dict[Any, list[dict]]:
-        """Fetch nested GenericRelation data using compiler - no model instantiation."""
-        related_model = field.related_model
-        ct_field_name = field.content_type_field_name
-        obj_id_field_name = field.object_id_field_name
-        related_pk_name = related_model._meta.pk.name
-
-        # Get the ContentType for the parent model
-        parent_ct = ContentType.objects.get_for_model(parent_model)
-
-        # Execute with compiler - handles select_related automatically!
-        related_qs = related_model._default_manager.filter(
-            **{ct_field_name: parent_ct, f"{obj_id_field_name}__in": parent_pks},
+        """Fetch nested GenericRelation data - delegates to _fetch_generic_relation_internal."""
+        return self._fetch_generic_relation_internal(
+            field,
+            further_nested,
+            parent_pks,
+            parent_model,
+            None,
+            main_results,
+            parent_path,
         )
-        related_data = _execute_queryset_as_dicts(related_qs, self.db)
-
-        if further_nested and related_data:
-            related_pks = [r[related_pk_name] for r in related_data]
-            nested_dict = {r[related_pk_name]: r for r in related_data}
-            full_path = f"{parent_path}{field.name}"
-            new_parent_path = f"{full_path}__"
-            self._add_nested_relations(
-                related_model,
-                nested_dict,
-                further_nested,
-                related_pks,
-                main_results,
-                new_parent_path,
-            )
-            related_data = list(nested_dict.values())
-
-        # Group by parent PK (object_id)
-        result: dict[Any, list[dict]] = {pk: [] for pk in parent_pks}
-        for row in related_data:
-            parent_pk = row[obj_id_field_name]
-            row_dict = dict(row)
-            # Remove the object_id field from output
-            row_dict.pop(obj_id_field_name, None)
-            # Also remove content_type_id if present
-            row_dict.pop(f"{ct_field_name}_id", None)
-            result[parent_pk].append(row_dict)
-
-        return result
 
     def _is_many_relation(self, field: Any) -> bool:
         """Check if a field represents a many-relation."""
