@@ -10,7 +10,7 @@ from django.db import connection, reset_queries
 from django.db.models import Prefetch
 
 from django_nested_values import NestedValuesQuerySet
-from tests.testapp.models import Author, Book, Chapter
+from tests.testapp.models import Author, Book, Chapter, Publisher, Tag
 
 
 def count_queries(func):
@@ -292,3 +292,426 @@ class TestPrefetchSelectRelatedOptimization:
         for book in john["books"]:
             assert "publisher" in book
             assert book["publisher"]["name"] in ["Tech Books Inc", "Science Press"]
+
+
+class TestComprehensiveQueryCount:
+    """Comprehensive tests for ALL relation patterns to ensure query count matches Django native."""
+
+    # ===========================================
+    # TOP-LEVEL PREFETCH PATTERNS
+    # ===========================================
+
+    def test_top_level_forward_m2m(self, sample_data, settings):
+        """Book.authors - forward M2M (ManyToManyField on Book)."""
+        settings.DEBUG = True
+
+        def django_native():
+            qs = Book.objects.prefetch_related("authors")
+            for book in qs:
+                _ = [a.name for a in book.authors.all()]
+
+        native_count = count_queries(django_native)
+
+        def values_nested_query():
+            qs = NestedValuesQuerySet(model=Book)
+            list(qs.prefetch_related("authors").values_nested())
+
+        our_count = count_queries(values_nested_query)
+        assert our_count == native_count, f"Expected {native_count} queries (Django native), got {our_count}"
+
+    def test_top_level_reverse_m2m(self, sample_data, settings):
+        """Author.books - reverse M2M (via related_name on Book.authors)."""
+        settings.DEBUG = True
+
+        def django_native():
+            qs = Author.objects.prefetch_related("books")
+            for author in qs:
+                _ = [b.title for b in author.books.all()]
+
+        native_count = count_queries(django_native)
+
+        def values_nested_query():
+            qs = NestedValuesQuerySet(model=Author)
+            list(qs.prefetch_related("books").values_nested())
+
+        our_count = count_queries(values_nested_query)
+        assert our_count == native_count, f"Expected {native_count} queries (Django native), got {our_count}"
+
+    def test_top_level_reverse_fk(self, sample_data, settings):
+        """Book.chapters - reverse FK (via related_name on Chapter.book)."""
+        settings.DEBUG = True
+
+        def django_native():
+            qs = Book.objects.prefetch_related("chapters")
+            for book in qs:
+                _ = [c.title for c in book.chapters.all()]
+
+        native_count = count_queries(django_native)
+
+        def values_nested_query():
+            qs = NestedValuesQuerySet(model=Book)
+            list(qs.prefetch_related("chapters").values_nested())
+
+        our_count = count_queries(values_nested_query)
+        assert our_count == native_count, f"Expected {native_count} queries (Django native), got {our_count}"
+
+    def test_top_level_reverse_fk_from_publisher(self, sample_data, settings):
+        """Publisher.books - reverse FK."""
+        settings.DEBUG = True
+
+        def django_native():
+            qs = Publisher.objects.prefetch_related("books")
+            for pub in qs:
+                _ = [b.title for b in pub.books.all()]
+
+        native_count = count_queries(django_native)
+
+        def values_nested_query():
+            qs = NestedValuesQuerySet(model=Publisher)
+            list(qs.prefetch_related("books").values_nested())
+
+        our_count = count_queries(values_nested_query)
+        assert our_count == native_count, f"Expected {native_count} queries (Django native), got {our_count}"
+
+    # ===========================================
+    # NESTED PREFETCH: FK -> X
+    # ===========================================
+
+    def test_nested_fk_to_m2m(self, sample_data, settings):
+        """Chapter -> book__authors (FK then forward M2M)."""
+        settings.DEBUG = True
+
+        def django_native():
+            qs = Chapter.objects.prefetch_related("book__authors")
+            for chapter in qs:
+                _ = chapter.book_id
+                _ = [a.name for a in chapter.book.authors.all()]
+
+        native_count = count_queries(django_native)
+
+        def values_nested_query():
+            qs = NestedValuesQuerySet(model=Chapter)
+            list(qs.prefetch_related("book__authors").values_nested())
+
+        our_count = count_queries(values_nested_query)
+        assert our_count == native_count, f"Expected {native_count} queries (Django native), got {our_count}"
+
+    def test_nested_fk_to_reverse_fk(self, sample_data, settings):
+        """Chapter -> book__chapters (FK then reverse FK - same model, different instances)."""
+        settings.DEBUG = True
+
+        def django_native():
+            qs = Chapter.objects.prefetch_related("book__chapters")
+            for chapter in qs:
+                _ = chapter.book_id
+                _ = [c.title for c in chapter.book.chapters.all()]
+
+        native_count = count_queries(django_native)
+
+        def values_nested_query():
+            qs = NestedValuesQuerySet(model=Chapter)
+            list(qs.prefetch_related("book__chapters").values_nested())
+
+        our_count = count_queries(values_nested_query)
+        assert our_count == native_count, f"Expected {native_count} queries (Django native), got {our_count}"
+
+    # ===========================================
+    # NESTED PREFETCH: M2M -> X
+    # ===========================================
+
+    def test_nested_m2m_to_fk(self, sample_data, settings):
+        """Book -> authors__books__publisher (forward M2M then reverse M2M then FK)."""
+        settings.DEBUG = True
+
+        def django_native():
+            qs = Book.objects.prefetch_related("authors__books__publisher")
+            for book in qs:
+                for author in book.authors.all():
+                    for b in author.books.all():
+                        _ = b.publisher.name
+
+        native_count = count_queries(django_native)
+
+        def values_nested_query():
+            qs = NestedValuesQuerySet(model=Book)
+            list(qs.prefetch_related("authors__books__publisher").values_nested())
+
+        our_count = count_queries(values_nested_query)
+        assert our_count == native_count, f"Expected {native_count} queries (Django native), got {our_count}"
+
+    def test_nested_forward_m2m_to_reverse_m2m(self, sample_data, settings):
+        """Book -> authors__books (forward M2M then reverse M2M back to Book)."""
+        settings.DEBUG = True
+
+        def django_native():
+            qs = Book.objects.prefetch_related("authors__books")
+            for book in qs:
+                for author in book.authors.all():
+                    _ = [b.title for b in author.books.all()]
+
+        native_count = count_queries(django_native)
+
+        def values_nested_query():
+            qs = NestedValuesQuerySet(model=Book)
+            list(qs.prefetch_related("authors__books").values_nested())
+
+        our_count = count_queries(values_nested_query)
+        assert our_count == native_count, f"Expected {native_count} queries (Django native), got {our_count}"
+
+    def test_nested_forward_m2m_to_forward_m2m(self, sample_data, settings):
+        """Author -> books__tags (reverse M2M then forward M2M)."""
+        settings.DEBUG = True
+
+        def django_native():
+            qs = Author.objects.prefetch_related("books__tags")
+            for author in qs:
+                for book in author.books.all():
+                    _ = [t.name for t in book.tags.all()]
+
+        native_count = count_queries(django_native)
+
+        def values_nested_query():
+            qs = NestedValuesQuerySet(model=Author)
+            list(qs.prefetch_related("books__tags").values_nested())
+
+        our_count = count_queries(values_nested_query)
+        assert our_count == native_count, f"Expected {native_count} queries (Django native), got {our_count}"
+
+    # ===========================================
+    # NESTED PREFETCH: Reverse FK -> X
+    # ===========================================
+
+    def test_nested_reverse_fk_to_m2m(self, sample_data, settings):
+        """Publisher -> books__authors (reverse FK then forward M2M)."""
+        settings.DEBUG = True
+
+        def django_native():
+            qs = Publisher.objects.prefetch_related("books__authors")
+            for pub in qs:
+                for book in pub.books.all():
+                    _ = [a.name for a in book.authors.all()]
+
+        native_count = count_queries(django_native)
+
+        def values_nested_query():
+            qs = NestedValuesQuerySet(model=Publisher)
+            list(qs.prefetch_related("books__authors").values_nested())
+
+        our_count = count_queries(values_nested_query)
+        assert our_count == native_count, f"Expected {native_count} queries (Django native), got {our_count}"
+
+    def test_nested_reverse_fk_to_reverse_fk(self, sample_data, settings):
+        """Publisher -> books__chapters (reverse FK then reverse FK)."""
+        settings.DEBUG = True
+
+        def django_native():
+            qs = Publisher.objects.prefetch_related("books__chapters")
+            for pub in qs:
+                for book in pub.books.all():
+                    _ = [c.title for c in book.chapters.all()]
+
+        native_count = count_queries(django_native)
+
+        def values_nested_query():
+            qs = NestedValuesQuerySet(model=Publisher)
+            list(qs.prefetch_related("books__chapters").values_nested())
+
+        our_count = count_queries(values_nested_query)
+        assert our_count == native_count, f"Expected {native_count} queries (Django native), got {our_count}"
+
+    # ===========================================
+    # NESTED PREFETCH: Reverse M2M -> X
+    # ===========================================
+
+    def test_nested_reverse_m2m_to_fk(self, sample_data, settings):
+        """Author -> books__publisher (reverse M2M then FK)."""
+        settings.DEBUG = True
+
+        def django_native():
+            qs = Author.objects.prefetch_related("books__publisher")
+            for author in qs:
+                for book in author.books.all():
+                    _ = book.publisher.name
+
+        native_count = count_queries(django_native)
+
+        def values_nested_query():
+            qs = NestedValuesQuerySet(model=Author)
+            list(qs.prefetch_related("books__publisher").values_nested())
+
+        our_count = count_queries(values_nested_query)
+        assert our_count == native_count, f"Expected {native_count} queries (Django native), got {our_count}"
+
+    def test_nested_reverse_m2m_to_reverse_fk(self, sample_data, settings):
+        """Author -> books__chapters (reverse M2M then reverse FK)."""
+        settings.DEBUG = True
+
+        def django_native():
+            qs = Author.objects.prefetch_related("books__chapters")
+            for author in qs:
+                for book in author.books.all():
+                    _ = [c.title for c in book.chapters.all()]
+
+        native_count = count_queries(django_native)
+
+        def values_nested_query():
+            qs = NestedValuesQuerySet(model=Author)
+            list(qs.prefetch_related("books__chapters").values_nested())
+
+        our_count = count_queries(values_nested_query)
+        assert our_count == native_count, f"Expected {native_count} queries (Django native), got {our_count}"
+
+    def test_nested_reverse_m2m_to_forward_m2m(self, sample_data, settings):
+        """Tag -> books__authors (reverse M2M then forward M2M)."""
+        settings.DEBUG = True
+
+        def django_native():
+            qs = Tag.objects.prefetch_related("books__authors")
+            for tag in qs:
+                for book in tag.books.all():
+                    _ = [a.name for a in book.authors.all()]
+
+        native_count = count_queries(django_native)
+
+        def values_nested_query():
+            qs = NestedValuesQuerySet(model=Tag)
+            list(qs.prefetch_related("books__authors").values_nested())
+
+        our_count = count_queries(values_nested_query)
+        assert our_count == native_count, f"Expected {native_count} queries (Django native), got {our_count}"
+
+    # ===========================================
+    # MULTIPLE PREFETCH PATHS
+    # ===========================================
+
+    def test_multiple_prefetch_same_intermediate(self, sample_data, settings):
+        """Author -> books__tags AND books__chapters (same intermediate, different endpoints)."""
+        settings.DEBUG = True
+
+        def django_native():
+            qs = Author.objects.prefetch_related("books__tags", "books__chapters")
+            for author in qs:
+                for book in author.books.all():
+                    _ = [t.name for t in book.tags.all()]
+                    _ = [c.title for c in book.chapters.all()]
+
+        native_count = count_queries(django_native)
+
+        def values_nested_query():
+            qs = NestedValuesQuerySet(model=Author)
+            list(qs.prefetch_related("books__tags", "books__chapters").values_nested())
+
+        our_count = count_queries(values_nested_query)
+        assert our_count == native_count, f"Expected {native_count} queries (Django native), got {our_count}"
+
+    def test_multiple_prefetch_converging_to_same_table(self, sample_data, settings):
+        """Publisher -> books__authors AND books__tags (multiple paths, possibly Django combines queries)."""
+        settings.DEBUG = True
+
+        def django_native():
+            qs = Publisher.objects.prefetch_related("books__authors", "books__tags")
+            for pub in qs:
+                for book in pub.books.all():
+                    _ = [a.name for a in book.authors.all()]
+                    _ = [t.name for t in book.tags.all()]
+
+        native_count = count_queries(django_native)
+
+        def values_nested_query():
+            qs = NestedValuesQuerySet(model=Publisher)
+            list(qs.prefetch_related("books__authors", "books__tags").values_nested())
+
+        our_count = count_queries(values_nested_query)
+        assert our_count == native_count, f"Expected {native_count} queries (Django native), got {our_count}"
+
+    def test_circular_prefetch_back_to_same_table(self, sample_data, settings):
+        """Author -> books__authors (goes back to Author table via different path)."""
+        settings.DEBUG = True
+
+        def django_native():
+            qs = Author.objects.prefetch_related("books__authors")
+            for author in qs:
+                for book in author.books.all():
+                    _ = [a.name for a in book.authors.all()]
+
+        native_count = count_queries(django_native)
+
+        def values_nested_query():
+            qs = NestedValuesQuerySet(model=Author)
+            list(qs.prefetch_related("books__authors").values_nested())
+
+        our_count = count_queries(values_nested_query)
+        assert our_count == native_count, f"Expected {native_count} queries (Django native), got {our_count}"
+
+    # ===========================================
+    # DEEP NESTING (3+ levels)
+    # ===========================================
+
+    def test_three_level_nesting(self, sample_data, settings):
+        """Publisher -> books__authors__books (3 levels deep)."""
+        settings.DEBUG = True
+
+        def django_native():
+            qs = Publisher.objects.prefetch_related("books__authors__books")
+            for pub in qs:
+                for book in pub.books.all():
+                    for author in book.authors.all():
+                        _ = [b.title for b in author.books.all()]
+
+        native_count = count_queries(django_native)
+
+        def values_nested_query():
+            qs = NestedValuesQuerySet(model=Publisher)
+            list(qs.prefetch_related("books__authors__books").values_nested())
+
+        our_count = count_queries(values_nested_query)
+        assert our_count == native_count, f"Expected {native_count} queries (Django native), got {our_count}"
+
+    def test_four_level_nesting(self, sample_data, settings):
+        """Publisher -> books__authors__books__chapters (4 levels deep)."""
+        settings.DEBUG = True
+
+        def django_native():
+            qs = Publisher.objects.prefetch_related("books__authors__books__chapters")
+            for pub in qs:
+                for book in pub.books.all():
+                    for author in book.authors.all():
+                        for b in author.books.all():
+                            _ = [c.title for c in b.chapters.all()]
+
+        native_count = count_queries(django_native)
+
+        def values_nested_query():
+            qs = NestedValuesQuerySet(model=Publisher)
+            list(qs.prefetch_related("books__authors__books__chapters").values_nested())
+
+        our_count = count_queries(values_nested_query)
+        assert our_count == native_count, f"Expected {native_count} queries (Django native), got {our_count}"
+
+    # ===========================================
+    # CONVERGENT PATHS TO SAME FINAL TABLE
+    # ===========================================
+
+    def test_two_paths_converge_to_same_table(self, sample_data, settings):
+        """Book -> publisher AND authors__books__publisher (two paths to Publisher).
+
+        Django might optimize by combining these into a single Publisher query.
+        """
+        settings.DEBUG = True
+
+        def django_native():
+            qs = Book.objects.prefetch_related("publisher", "authors__books__publisher")
+            for book in qs:
+                _ = book.publisher.name
+                for author in book.authors.all():
+                    for b in author.books.all():
+                        _ = b.publisher.name
+
+        native_count = count_queries(django_native)
+
+        def values_nested_query():
+            qs = NestedValuesQuerySet(model=Book)
+            list(qs.prefetch_related("publisher", "authors__books__publisher").values_nested())
+
+        our_count = count_queries(values_nested_query)
+        assert our_count == native_count, f"Expected {native_count} queries (Django native), got {our_count}"

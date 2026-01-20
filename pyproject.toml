@@ -1,6 +1,6 @@
 [project]
 name = "django-nested-values"
-version = "0.6.4"
+version = "0.6.5"
 description = "Add .values_nested() to Django querysets for nested prefetch dictionaries"
 readme = "README.md"
 license = { text = "MIT" }

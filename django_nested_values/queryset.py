@@ -1427,6 +1427,7 @@ class NestedValuesQuerySetMixin(_MixinBase[_ModelT_co]):
                 parent_pks,
                 main_results,
                 parent_path,
+                data,  # Pass already-fetched parent data
             )
 
             for pk, row in data.items():
@@ -1441,6 +1442,7 @@ class NestedValuesQuerySetMixin(_MixinBase[_ModelT_co]):
         parent_pks: list[Any],
         main_results: list[dict] | None = None,
         parent_path: str = "",
+        parent_data: dict[Any, dict] | None = None,
     ) -> dict[Any, list[dict] | dict | None]:
         """Fetch a nested relation for already-fetched data.
 
@@ -1452,6 +1454,7 @@ class NestedValuesQuerySetMixin(_MixinBase[_ModelT_co]):
             parent_pks: List of parent primary keys
             main_results: Original main query results (for extracting select_related data)
             parent_path: Path prefix for tracking position in relation chain
+            parent_data: Already-fetched parent data (pk -> row dict) to avoid re-querying
         """
         if isinstance(field, ManyToManyField):
             return self._fetch_nested_m2m(parent_model, field, further_nested, parent_pks, main_results, parent_path)  # type: ignore[return-value]
@@ -1465,7 +1468,15 @@ class NestedValuesQuerySetMixin(_MixinBase[_ModelT_co]):
                 parent_path,
             )  # type: ignore[return-value]
         if isinstance(field, ForeignKey):
-            return self._fetch_nested_fk(parent_model, field, further_nested, parent_pks, main_results, parent_path)  # type: ignore[return-value]
+            return self._fetch_nested_fk(
+                parent_model,
+                field,
+                further_nested,
+                parent_pks,
+                main_results,
+                parent_path,
+                parent_data,
+            )  # type: ignore[return-value]
         if isinstance(field, ManyToManyRel):
             return self._fetch_nested_reverse_m2m(
                 parent_model,
@@ -1604,6 +1615,7 @@ class NestedValuesQuerySetMixin(_MixinBase[_ModelT_co]):
         parent_pks: list[Any],
         main_results: list[dict] | None = None,
         parent_path: str = "",
+        parent_data: dict[Any, dict] | None = None,
     ) -> dict[Any, dict | None]:
         """Fetch nested ForeignKey data.
 
@@ -1614,9 +1626,11 @@ class NestedValuesQuerySetMixin(_MixinBase[_ModelT_co]):
             parent_pks: List of parent primary keys
             main_results: Original main query results (for extracting select_related data)
             parent_path: Path prefix for tracking position in relation chain (e.g., "product__")
+            parent_data: Already-fetched parent data (pk -> row dict) to avoid re-querying for FK values
         """
         related_model = field.related_model
         fk_attr = field.name
+        fk_attname = field.attname  # e.g., "publisher_id"
         related_pk_name = related_model._meta.pk.name
 
         # Build the full path for this relation (e.g., "product__master")
@@ -1634,11 +1648,22 @@ class NestedValuesQuerySetMixin(_MixinBase[_ModelT_co]):
             )
             fk_values = list(related_data.keys())
         else:
-            # Not select_related - need to query
-            fk_column = f"{fk_attr}_id"
-            parent_qs = parent_model._default_manager.filter(pk__in=parent_pks)  # type: ignore[union-attr]
-            pk_name = parent_model._meta.pk.name  # type: ignore[union-attr]
-            fk_data = {r[pk_name]: r[fk_column] for r in parent_qs.values(pk_name, fk_column)}
+            # Try to get FK values from parent_data first (avoid re-querying)
+            if parent_data is not None:
+                # Extract FK values from already-fetched parent data
+                # Try both the relation name (publisher) and attname (publisher_id)
+                fk_data = {}
+                pk_name = parent_model._meta.pk.name  # type: ignore[union-attr]
+                for pk, row in parent_data.items():
+                    # Try attname first (publisher_id), then relation name (publisher)
+                    fk_value = row.get(fk_attname) or row.get(fk_attr)
+                    fk_data[pk] = fk_value
+            else:
+                # Fallback: query the database for FK values
+                fk_column = fk_attname
+                parent_qs = parent_model._default_manager.filter(pk__in=parent_pks)  # type: ignore[union-attr]
+                pk_name = parent_model._meta.pk.name  # type: ignore[union-attr]
+                fk_data = {r[pk_name]: r[fk_column] for r in parent_qs.values(pk_name, fk_column)}
 
             fk_values = list({v for v in fk_data.values() if v is not None})
             if not fk_values:
@@ -1692,28 +1717,41 @@ class NestedValuesQuerySetMixin(_MixinBase[_ModelT_co]):
         main_results: list[dict] | None = None,
         parent_path: str = "",
     ) -> dict[Any, list[dict]]:
-        """Fetch nested reverse ManyToMany data."""
+        """Fetch nested reverse ManyToMany data.
+
+        Uses a single query with JOIN on the through table, matching Django's
+        native prefetch_related behavior.
+        """
         related_model = field.related_model
-        through_model = field.through
-        m2m_field = field.field
+        # The forward M2M field name on the related model (e.g., Book.authors -> "authors")
+        forward_accessor = field.field.name
 
-        source_col = m2m_field.m2m_reverse_name()
-        target_col = m2m_field.m2m_column_name()
-
-        through_qs = through_model.objects.filter(**{f"{source_col}__in": parent_pks})  # type: ignore[union-attr]
-        through_data = list(through_qs.values(source_col, target_col))
-
-        if not through_data:
-            return {pk: [] for pk in parent_pks}
-
-        related_pks = [t[target_col] for t in through_data]
         fetch_fields = [f.name for f in related_model._meta.concrete_fields]
         related_pk_name = related_model._meta.pk.name
 
-        related_qs = related_model._default_manager.filter(pk__in=related_pks)
-        related_data = {r[related_pk_name]: dict(r) for r in related_qs.values(*fetch_fields)}
+        # Filter related model where M2M field contains parent PKs
+        # This creates a single query with JOIN on the through table
+        related_qs = related_model._default_manager.filter(**{f"{forward_accessor}__in": parent_pks})
 
-        if further_nested:
+        # Add parent PK to values for grouping (via through table JOIN)
+        fetch_fields_with_source = [*fetch_fields, f"{forward_accessor}__pk"]
+        raw_data = list(related_qs.values(*fetch_fields_with_source))
+
+        # Group by parent PK
+        result: dict[Any, list[dict]] = {pk: [] for pk in parent_pks}
+        related_data: dict[Any, dict] = {}
+
+        for row in raw_data:
+            source_pk = row.pop(f"{forward_accessor}__pk")
+            related_pk = row[related_pk_name]
+            row_dict = dict(row)
+
+            result[source_pk].append(row_dict)
+
+            if further_nested and related_pk not in related_data:
+                related_data[related_pk] = row_dict
+
+        if further_nested and related_data:
             # Build full path for this relation
             rel_name = field.get_accessor_name()
             full_path = f"{parent_path}{rel_name}"
@@ -1726,13 +1764,14 @@ class NestedValuesQuerySetMixin(_MixinBase[_ModelT_co]):
                 main_results,
                 new_parent_path,
             )
-
-        result: dict[Any, list[dict]] = {pk: [] for pk in parent_pks}
-        for through_row in through_data:
-            parent_pk = through_row[source_col]
-            related_pk = through_row[target_col]
-            if related_pk in related_data:
-                result[parent_pk].append(dict(related_data[related_pk]))
+            # Update results with nested data
+            for source_pk, items in result.items():
+                for item in items:
+                    pk_val = item.get(related_pk_name)
+                    if pk_val and pk_val in related_data:
+                        for key, val in related_data[pk_val].items():
+                            if key not in item:
+                                item[key] = val
 
         return result
 
