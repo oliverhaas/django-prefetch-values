@@ -56,7 +56,11 @@ Book.objects.published().by_author("John").prefetch_related("authors").values_ne
 
 Returns dictionaries with related objects included as nested dicts/lists.
 
-**Takes no arguments.** Use standard Django methods to control the output:
+**Parameters:**
+
+- `as_objects` (bool, default `False`): If `True`, returns `NestedObject` instances instead of plain dicts.
+
+Use standard Django methods to control the output:
 
 - `.only()` - Select which fields to include
 - `.select_related()` - Include ForeignKey relations (single dict)
@@ -176,4 +180,51 @@ Book.objects.prefetch_related(
     Prefetch("chapters", queryset=Chapter.objects.filter(number=1), to_attr="first_chapter")
 ).values_nested()
 # {"id": 1, "title": "...", "first_chapter": [{"id": 1, "title": "Introduction"}]}
+```
+
+## Object-Style Access
+
+### as_objects Parameter
+
+Use `as_objects=True` to get `NestedObject` instances instead of plain dicts:
+
+```python
+books = Book.objects.select_related("publisher").prefetch_related("authors").values_nested(as_objects=True)
+for book in books:
+    print(book.title)           # Attribute access
+    print(book["title"])        # Dict access still works
+    print(book.publisher.name)  # Nested attribute access
+    for author in book.authors.all():
+        print(author.name)
+```
+
+### NestedObject
+
+A dict wrapper that supports both attribute access (`obj.field`) and dict access (`obj["field"]`).
+
+```python
+from django_nested_values import NestedObject
+
+obj = NestedObject({"title": "Django", "publisher": {"name": "Pub"}})
+obj.title           # "Django"
+obj["title"]        # "Django"
+obj.publisher.name  # "Pub" (nested dicts are also wrapped)
+```
+
+**Methods:**
+
+- `to_dict()` - Convert back to a plain dict (recursively unwraps nested objects)
+- `keys()`, `values()`, `items()`, `get()` - Standard dict methods
+
+### RelatedList
+
+A list wrapper for related object collections that supports `.all()` for Django-like iteration:
+
+```python
+for book in books:
+    # Both work the same
+    for author in book.authors:
+        print(author.name)
+    for author in book.authors.all():
+        print(author.name)
 ```

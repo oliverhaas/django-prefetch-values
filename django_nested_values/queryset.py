@@ -47,6 +47,7 @@ def _build_dict_from_klass_info(
 
     Returns:
         A dict with field names as keys and values from the row
+
     """
     result: dict[str, Any] = {}
 
@@ -91,6 +92,7 @@ def _execute_queryset_as_dicts(
 
     Returns:
         List of nested dictionaries, one per row
+
     """
     compiler = queryset.query.get_compiler(using=db)
     results = compiler.execute_sql()
@@ -118,6 +120,7 @@ def _execute_prefetch_as_dicts(
 
     Returns:
         Tuple of (list of model dicts, list of extra column dicts for grouping)
+
     """
     compiler = queryset.query.get_compiler(using=db)
     results = compiler.execute_sql()
@@ -180,6 +183,7 @@ class NestedObject:
         'Django'
         >>> obj.publisher.name
         'Pub'
+
     """
 
     __slots__ = ("_data",)
@@ -206,7 +210,8 @@ class NestedObject:
         try:
             return self._data[name]
         except KeyError:
-            raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'") from None
+            msg = f"'{type(self).__name__}' object has no attribute '{name}'"
+            raise AttributeError(msg) from None
 
     def __setattr__(self, name: str, value: Any) -> None:
         """Set attribute in underlying dict."""
@@ -480,6 +485,7 @@ class NestedValuesQuerySetMixin(_MixinBase[_ModelT_co]):
         Returns:
             A QuerySet that yields dict[str, Any] or NestedObject when iterated,
             with nested dictionaries/objects for related objects.
+
         """
         clone: Self = self._clone()  # type: ignore[assignment]
         clone._iterable_class = NestedValuesIterable
@@ -634,7 +640,7 @@ class NestedValuesQuerySetMixin(_MixinBase[_ModelT_co]):
             if nested:
                 self._flatten_select_related_to_paths(nested, f"{full_path}__", result)
 
-    def _fetch_m2m_internal(  # noqa: PLR0913
+    def _fetch_m2m_internal(  # noqa: C901, PLR0912, PLR0913
         self,
         related_model: type[Model],
         accessor: str,
@@ -646,9 +652,9 @@ class NestedValuesQuerySetMixin(_MixinBase[_ModelT_co]):
         parent_path: str,
         m2m_field: ManyToManyField[Any, Any] | ManyToManyRel,
     ) -> dict[Any, list[dict[str, Any]]]:
-        """Internal helper to fetch M2M data - used by forward/reverse M2M, top-level and nested.
+        """Fetch M2M data for forward/reverse M2M lookups, top-level and nested.
 
-        Uses Django's compiler with .extra() annotation to match Django's native
+        Use Django's compiler with .extra() annotation to match Django's native
         prefetch_related behavior. Raw rows → dicts, no model instantiation.
         """
         related_pk_name = related_model._meta.pk.name
@@ -767,7 +773,7 @@ class NestedValuesQuerySetMixin(_MixinBase[_ModelT_co]):
 
         return result
 
-    def _fetch_fk_internal(  # noqa: PLR0913
+    def _fetch_fk_internal(  # noqa: C901, PLR0912, PLR0913
         self,
         field: ForeignKey[Any, Any],
         nested_relations: list[str],
@@ -854,7 +860,7 @@ class NestedValuesQuerySetMixin(_MixinBase[_ModelT_co]):
         main_results: list[dict[str, Any]] | None,
         parent_path: str,
     ) -> dict[Any, list[dict[str, Any]]]:
-        """Internal helper to fetch GenericRelation data - used by top-level and nested."""
+        """Fetch GenericRelation data for top-level and nested lookups."""
         related_model = cast("type[Model]", field.related_model)
         ct_field_name = field.content_type_field_name
         obj_id_field_name = field.object_id_field_name
@@ -894,7 +900,7 @@ class NestedValuesQuerySetMixin(_MixinBase[_ModelT_co]):
 
         return result
 
-    def _fetch_generic_fk_values(
+    def _fetch_generic_fk_values(  # noqa: C901, PLR0912
         self,
         lookup: GenericPrefetch[Any],
         parent_pks: list[Any],

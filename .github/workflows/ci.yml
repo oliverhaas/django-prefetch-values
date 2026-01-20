@@ -28,6 +28,9 @@ jobs:
       - name: Run ty check
         run: uv run ty check django_nested_values/
 
+      - name: Run mypy check
+        run: uv run mypy django_nested_values/
+
   test:
     runs-on: ubuntu-latest
     strategy:
