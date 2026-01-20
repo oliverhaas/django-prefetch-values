@@ -200,7 +200,7 @@ wheels = [
 
 [[package]]
 name = "django-nested-values"
-version = "0.6.10"
+version = "0.6.11"
 source = { editable = "." }
 dependencies = [
     { name = "django" },

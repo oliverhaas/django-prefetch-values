@@ -441,20 +441,6 @@ class NestedValuesQuerySetMixin(_MixinBase[_ModelT_co]):
 
         return {}
 
-    def _get_fields_for_relation(self, related_model: type[Any], custom_qs: QuerySet | None) -> list[str]:
-        """Get the fields to fetch for a related model."""
-        if custom_qs is not None:
-            # Check if the custom queryset has .only()
-            deferred = custom_qs.query.deferred_loading
-            deferred_fields, is_defer = deferred
-
-            if deferred_fields and not is_defer:
-                # .only() was used
-                return list(deferred_fields)
-
-        # Return all concrete fields
-        return [f.name for f in related_model._meta.concrete_fields]
-
     def _get_select_related_from_queryset(self, qs: QuerySet | None) -> dict[str, Any]:
         """Get select_related structure from a queryset.
 
@@ -895,21 +881,18 @@ class NestedValuesQuerySetMixin(_MixinBase[_ModelT_co]):
         custom_qs: QuerySet | None,
         main_results: list[dict] | None = None,
     ) -> dict[Any, list[dict]]:
-        """Fetch GenericRelation data (content types framework)."""
+        """Fetch GenericRelation data (content types framework).
+
+        Uses Django's compiler to execute the query and build nested dicts
+        directly from raw row tuples - no model instantiation.
+        """
         related_model = field.related_model
         ct_field_name = field.content_type_field_name  # Usually "content_type"
         obj_id_field_name = field.object_id_field_name  # Usually "object_id"
+        related_pk_name = related_model._meta.pk.name
 
         # Get the ContentType for the parent model
         parent_ct = ContentType.objects.get_for_model(self.model)
-
-        fetch_fields = self._get_fields_for_relation(related_model, custom_qs)
-        related_pk_name = related_model._meta.pk.name
-        if related_pk_name not in fetch_fields:
-            fetch_fields = [related_pk_name, *fetch_fields]
-        # Ensure object_id is in fetch_fields for grouping
-        if obj_id_field_name not in fetch_fields:
-            fetch_fields = [*fetch_fields, obj_id_field_name]
 
         # Build queryset - filter by content_type and object_id
         if custom_qs is not None:
@@ -921,13 +904,13 @@ class NestedValuesQuerySetMixin(_MixinBase[_ModelT_co]):
                 **{ct_field_name: parent_ct, f"{obj_id_field_name}__in": parent_pks},
             )
 
-        related_data = list(related_qs.values(*fetch_fields))
+        # Execute with compiler - handles select_related automatically!
+        related_data = _execute_queryset_as_dicts(related_qs, self.db)
 
         # Handle nested relations
         if nested_relations and related_data:
             related_pks = [r[related_pk_name] for r in related_data]
-            nested_dict = {r[related_pk_name]: dict(r) for r in related_data}
-            # Parent path is the relation name + "__"
+            nested_dict = {r[related_pk_name]: r for r in related_data}
             parent_path = f"{field.name}__"
             self._add_nested_relations(
                 related_model,
@@ -1013,14 +996,10 @@ class NestedValuesQuerySetMixin(_MixinBase[_ModelT_co]):
             # Get object IDs to fetch
             object_ids = [obj_id for _, obj_id in parent_obj_pairs]
 
-            # Get fields to fetch
-            fetch_fields = self._get_fields_for_relation(related_model, qs)
-            if related_pk_name not in fetch_fields:
-                fetch_fields = [related_pk_name, *fetch_fields]
-
-            # Fetch the related objects
+            # Fetch the related objects using compiler - no model instantiation
             related_qs = qs.filter(pk__in=object_ids)
-            related_data = {r[related_pk_name]: dict(r) for r in related_qs.values(*fetch_fields)}
+            results = _execute_queryset_as_dicts(related_qs, self.db)
+            related_data = {r[related_pk_name]: r for r in results}
 
             # Handle nested prefetches on the GenericPrefetch queryset
             if qs._prefetch_related_lookups:  # type: ignore[attr-defined]
@@ -1376,30 +1355,24 @@ class NestedValuesQuerySetMixin(_MixinBase[_ModelT_co]):
         main_results: list[dict] | None = None,
         parent_path: str = "",
     ) -> dict[Any, list[dict]]:
-        """Fetch nested GenericRelation data."""
+        """Fetch nested GenericRelation data using compiler - no model instantiation."""
         related_model = field.related_model
         ct_field_name = field.content_type_field_name
         obj_id_field_name = field.object_id_field_name
+        related_pk_name = related_model._meta.pk.name
 
         # Get the ContentType for the parent model
         parent_ct = ContentType.objects.get_for_model(parent_model)
 
-        fetch_fields = [f.name for f in related_model._meta.concrete_fields]
-        related_pk_name = related_model._meta.pk.name
-
-        # Ensure object_id is in fetch_fields for grouping
-        if obj_id_field_name not in fetch_fields:
-            fetch_fields = [*fetch_fields, obj_id_field_name]
-
+        # Execute with compiler - handles select_related automatically!
         related_qs = related_model._default_manager.filter(
             **{ct_field_name: parent_ct, f"{obj_id_field_name}__in": parent_pks},
         )
-        related_data = list(related_qs.values(*fetch_fields))
+        related_data = _execute_queryset_as_dicts(related_qs, self.db)
 
         if further_nested and related_data:
             related_pks = [r[related_pk_name] for r in related_data]
-            nested_dict = {r[related_pk_name]: dict(r) for r in related_data}
-            # Build full path for this relation
+            nested_dict = {r[related_pk_name]: r for r in related_data}
             full_path = f"{parent_path}{field.name}"
             new_parent_path = f"{full_path}__"
             self._add_nested_relations(
