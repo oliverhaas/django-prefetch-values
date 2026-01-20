@@ -515,7 +515,6 @@ class NestedValuesQuerySetMixin(_MixinBase[_ModelT_co]):
                 )
             else:
                 result[attr_name] = self._fetch_relation_values(
-                    attr_name,
                     lookup,
                     nested,
                     parent_pks,
@@ -560,7 +559,6 @@ class NestedValuesQuerySetMixin(_MixinBase[_ModelT_co]):
 
     def _fetch_relation_values(
         self,
-        attr_name: str,
         lookup: str | Prefetch[Any],
         nested_relations: list[str],
         parent_pks: list[Any],

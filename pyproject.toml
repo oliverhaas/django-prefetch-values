@@ -63,30 +63,18 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 explicit-preview-rules = true
 fixable = ["ALL"]
 ignore = [
-  "ANN401",  # Any needed for untyped Django APIs
-  "ARG001",  # Signal handlers and overrides have required signatures
-  "ARG002",
-  "B007",    # Loop variable not used - sometimes intentional in nested loops
-  "C901",    # Some functions are inherently complex
+  "ANN401",  # Any needed for NestedObject's dynamic attribute access
+  "C901",    # Complex ORM dispatch logic is inherently complex
   "COM812",  # Conflicts with ruff-format
-  "D",       # Docstring rules are too extensive
+  "D",       # Docstrings not enforced
   "E5",      # 120 char limit is sufficient
-  "EM101",   # Extracting exception messages to variables hurts readability
-  "EM102",
-  "FBT001",  # Boolean traps - too many violations, breaks compatibility
+  "EM102",   # f-string in AttributeError matches Python's standard format
+  "FBT001",  # as_objects: bool parameter is clear API design
   "FBT002",
-  "N802",    # Naming follows Django conventions
-  "N806",
-  "PLC0415", # Lazy imports for optional dependencies
-  "PLR0911", # Too many return statements - complex ORM code requires this
-  "PLR0912", # Too many branches - complex ORM code requires this
-  "PLR1704", # Redefining argument in context manager
-  "PYI024",  # namedtuple usage follows Django patterns
-  "RUF005",  # Tuple concatenation is clearer
-  "RUF015",  # Readability over micro-optimization
-  "RUF059",  # Keep unused variables explicit
+  "PLC0415", # Lazy import of django.db.connections in M2M method
+  "PLR0912", # Complex ORM dispatch logic requires many branches
   "SLF001",  # Private member access needed for Django internals
-  "TRY003",  # Long exception messages are fine
+  "TRY003",  # AttributeError message matches Python's standard format
 ]
 preview = true
 select = ["ALL"]
@@ -95,7 +83,10 @@ unfixable = []
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = [
   "ANN",     # Type annotations not required in tests
+  "ARG001",  # Pytest fixtures appear as unused arguments
+  "ARG002",
   "ERA001",  # Commented code in models is explanatory
+  "N806",    # Dynamic class creation uses CamelCase variable names
   "PLR0913", # Too many arguments in test fixtures
   "PLR2004", # Magic values in tests are fine
   "RUF012",  # Django model attributes don't need ClassVar
