@@ -700,8 +700,8 @@
 <h1 id="changelog">Changelog<a class="headerlink" href="#changelog" title="Permanent link">&para;</a></h1>
 <h2 id="unreleased">[Unreleased]<a class="headerlink" href="#unreleased" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong>New</strong>: <code>as_attr_dicts</code> parameter for <code>values_nested()</code> returns <code>AttrDict</code> instances with attribute access</li>
-<li><strong>New</strong>: <code>AttrDict</code> - minimal dict subclass with attribute access (~2.7% overhead vs plain dict)</li>
+<li><strong>New</strong>: NULL ForeignKey fields now included as <code>None</code> instead of being omitted from result dicts</li>
+<li><strong>Removed</strong>: <code>as_attr_dicts</code> parameter and public <code>AttrDict</code> export (internal code retained for potential future use)</li>
 </ul>
 <h2 id="040">[0.4.0]<a class="headerlink" href="#040" title="Permanent link">&para;</a></h2>
 <ul>

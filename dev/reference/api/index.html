@@ -749,45 +749,6 @@
   
 </li>
       
-        <li class="md-nav__item">
-  <a href="#attribute-style-access" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Attribute-Style Access
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Attribute-Style Access">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#as_attr_dicts-parameter" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        as_attr_dicts Parameter
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#attrdict" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        AttrDict
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
     </ul>
   
 </nav>
@@ -1086,45 +1047,6 @@
   
 </li>
       
-        <li class="md-nav__item">
-  <a href="#attribute-style-access" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Attribute-Style Access
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Attribute-Style Access">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#as_attr_dicts-parameter" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        as_attr_dicts Parameter
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#attrdict" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        AttrDict
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
     </ul>
   
 </nav>
@@ -1184,10 +1106,6 @@
 </code></pre></div>
 <h3 id="values_nested">values_nested()<a class="headerlink" href="#values_nested" title="Permanent link">&para;</a></h3>
 <p>Returns dictionaries with related objects included as nested dicts/lists.</p>
-<p><strong>Parameters:</strong></p>
-<ul>
-<li><code>as_attr_dicts</code> (bool, default <code>False</code>): If <code>True</code>, returns <code>AttrDict</code> instances instead of plain dicts.</li>
-</ul>
 <p>Use standard Django methods to control the output:</p>
 <ul>
 <li><code>.only()</code> - Select which fields to include</li>
@@ -1294,32 +1212,6 @@
 <a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a><span class="p">)</span><span class="o">.</span><span class="n">values_nested</span><span class="p">()</span>
 <a id="__codelineno-12-12" name="__codelineno-12-12" href="#__codelineno-12-12"></a><span class="c1"># {&quot;id&quot;: 1, &quot;title&quot;: &quot;...&quot;, &quot;first_chapter&quot;: [{&quot;id&quot;: 1, &quot;title&quot;: &quot;Introduction&quot;}]}</span>
 </code></pre></div>
-<h2 id="attribute-style-access">Attribute-Style Access<a class="headerlink" href="#attribute-style-access" title="Permanent link">&para;</a></h2>
-<h3 id="as_attr_dicts-parameter">as_attr_dicts Parameter<a class="headerlink" href="#as_attr_dicts-parameter" title="Permanent link">&para;</a></h3>
-<p>Use <code>as_attr_dicts=True</code> to get <code>AttrDict</code> instances instead of plain dicts:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="n">books</span> <span class="o">=</span> <span class="n">Book</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">select_related</span><span class="p">(</span><span class="s2">&quot;publisher&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">prefetch_related</span><span class="p">(</span><span class="s2">&quot;authors&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">values_nested</span><span class="p">(</span><span class="n">as_attr_dicts</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="k">for</span> <span class="n">book</span> <span class="ow">in</span> <span class="n">books</span><span class="p">:</span>
-<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>    <span class="nb">print</span><span class="p">(</span><span class="n">book</span><span class="o">.</span><span class="n">title</span><span class="p">)</span>           <span class="c1"># Attribute access</span>
-<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>    <span class="nb">print</span><span class="p">(</span><span class="n">book</span><span class="p">[</span><span class="s2">&quot;title&quot;</span><span class="p">])</span>        <span class="c1"># Dict access still works</span>
-<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>    <span class="nb">print</span><span class="p">(</span><span class="n">book</span><span class="o">.</span><span class="n">publisher</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>  <span class="c1"># Nested attribute access</span>
-<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>    <span class="k">for</span> <span class="n">author</span> <span class="ow">in</span> <span class="n">book</span><span class="o">.</span><span class="n">authors</span><span class="p">:</span>
-<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a>        <span class="nb">print</span><span class="p">(</span><span class="n">author</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>      <span class="c1"># Nested lists contain AttrDicts too</span>
-</code></pre></div>
-<h3 id="attrdict">AttrDict<a class="headerlink" href="#attrdict" title="Permanent link">&para;</a></h3>
-<p>A dict subclass that supports both attribute access (<code>obj.field</code>) and dict access (<code>obj["field"]</code>).</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_nested_values</span><span class="w"> </span><span class="kn">import</span> <span class="n">AttrDict</span>
-<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>
-<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="n">obj</span> <span class="o">=</span> <span class="n">AttrDict</span><span class="p">({</span><span class="s2">&quot;title&quot;</span><span class="p">:</span> <span class="s2">&quot;Django&quot;</span><span class="p">})</span>
-<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="n">obj</span><span class="o">.</span><span class="n">title</span>           <span class="c1"># &quot;Django&quot;</span>
-<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="n">obj</span><span class="p">[</span><span class="s2">&quot;title&quot;</span><span class="p">]</span>        <span class="c1"># &quot;Django&quot;</span>
-<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a><span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span>  <span class="c1"># True - it&#39;s a real dict subclass</span>
-</code></pre></div>
-<p>Since <code>AttrDict</code> inherits from <code>dict</code>, all standard dict operations work:</p>
-<ul>
-<li><code>keys()</code>, <code>values()</code>, <code>items()</code>, <code>get()</code>, etc.</li>
-<li>JSON serialization works directly</li>
-<li>Can be passed anywhere a dict is expected</li>
-</ul>
 
 
 
