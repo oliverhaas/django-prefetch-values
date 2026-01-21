@@ -63,6 +63,15 @@ class Book(models.Model):
         related_name="books",
     )
 
+    # Nullable ForeignKey for testing NULL FK handling
+    editor = models.ForeignKey(
+        Author,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="edited_books",
+    )
+
     # ManyToMany
     authors = models.ManyToManyField(Author, related_name="books")
     tags = models.ManyToManyField(Tag, related_name="books")

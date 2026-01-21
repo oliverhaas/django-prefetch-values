@@ -92,6 +92,8 @@ def _build_from_klass_info(
     for related_ki in klass_info.get("related_klass_infos", []):
         pk_idx = related_ki["select_fields"][0]
         if row[pk_idx] is None:
+            # Include NULL FK as None rather than omitting the key
+            result[related_ki["field"].name] = None
             continue
         result[related_ki["field"].name] = _build_from_klass_info(row, related_ki, select, container)
 
