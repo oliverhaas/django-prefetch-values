@@ -4,8 +4,7 @@ from django_nested_values.queryset import (
     AttrDict,
     NestedValuesQuerySet,
     NestedValuesQuerySetMixin,
-    RelatedList,
 )
 
-__all__ = ["AttrDict", "NestedValuesQuerySet", "NestedValuesQuerySetMixin", "RelatedList"]
+__all__ = ["AttrDict", "NestedValuesQuerySet", "NestedValuesQuerySetMixin"]
 __version__ = "0.5.2"

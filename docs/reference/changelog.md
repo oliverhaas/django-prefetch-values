@@ -3,8 +3,7 @@
 ## [Unreleased]
 
 - **New**: `as_attr_dicts` parameter for `values_nested()` returns `AttrDict` instances with attribute access
-- **New**: `AttrDict` class supports both attribute (`obj.field`) and dict (`obj["field"]`) access
-- **New**: `RelatedList` class for related collections with `.all()` method for Django-like iteration
+- **New**: `AttrDict` - minimal dict subclass with attribute access (~2.7% overhead vs plain dict)
 
 ## [0.4.0]
 
