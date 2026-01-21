@@ -194,37 +194,25 @@ for book in books:
     print(book.title)           # Attribute access
     print(book["title"])        # Dict access still works
     print(book.publisher.name)  # Nested attribute access
-    for author in book.authors.all():
-        print(author.name)
+    for author in book.authors:
+        print(author.name)      # Nested lists contain AttrDicts too
 ```
 
 ### AttrDict
 
-A dict wrapper that supports both attribute access (`obj.field`) and dict access (`obj["field"]`).
+A dict subclass that supports both attribute access (`obj.field`) and dict access (`obj["field"]`).
 
 ```python
 from django_nested_values import AttrDict
 
-obj = AttrDict({"title": "Django", "publisher": {"name": "Pub"}})
+obj = AttrDict({"title": "Django"})
 obj.title           # "Django"
 obj["title"]        # "Django"
-obj.publisher.name  # "Pub" (nested dicts are also wrapped)
+isinstance(obj, dict)  # True - it's a real dict subclass
 ```
 
-**Methods:**
+Since `AttrDict` inherits from `dict`, all standard dict operations work:
 
-- `to_dict()` - Convert back to a plain dict (recursively unwraps nested AttrDicts)
-- `keys()`, `values()`, `items()`, `get()` - Standard dict methods
-
-### RelatedList
-
-A list wrapper for related object collections that supports `.all()` for Django-like iteration:
-
-```python
-for book in books:
-    # Both work the same
-    for author in book.authors:
-        print(author.name)
-    for author in book.authors.all():
-        print(author.name)
-```
+- `keys()`, `values()`, `items()`, `get()`, etc.
+- JSON serialization works directly
+- Can be passed anywhere a dict is expected

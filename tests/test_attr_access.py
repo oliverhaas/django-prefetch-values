@@ -1,9 +1,9 @@
 """Tests for attribute-style access via values_nested(as_attr_dicts=True).
 
 Tests cover:
+- AttrDict as a dict subclass
 - Attribute access on AttrDict
 - Dict access on AttrDict
-- RelatedList with .all() method
 - Nested object/list access
 - Compatibility with existing dict patterns
 """
@@ -12,12 +12,17 @@ from __future__ import annotations
 
 import pytest
 
-from django_nested_values import AttrDict, NestedValuesQuerySet, RelatedList
+from django_nested_values import AttrDict, NestedValuesQuerySet
 from tests.testapp.models import Author, Book
 
 
 class TestAttrDict:
-    """Test AttrDict wrapper class."""
+    """Test AttrDict dict subclass."""
+
+    def test_is_dict_subclass(self):
+        """AttrDict is a dict subclass."""
+        obj = AttrDict({"a": 1})
+        assert isinstance(obj, dict)
 
     def test_attribute_access(self):
         """AttrDict supports attribute access."""
@@ -61,24 +66,10 @@ class TestAttrDict:
         assert obj.get("b") is None
         assert obj.get("b", "default") == "default"
 
-    def test_nested_dict_wrapped(self):
-        """Nested dicts are wrapped as AttrDict when using .wrap()."""
-        obj = AttrDict.wrap({"publisher": {"name": "Tech Books", "country": "USA"}})
-        assert isinstance(obj.publisher, AttrDict)
-        assert obj.publisher.name == "Tech Books"
-        assert obj.publisher["country"] == "USA"
-
-    def test_nested_list_wrapped(self):
-        """Lists are wrapped as RelatedList when using .wrap()."""
-        obj = AttrDict.wrap({"authors": [{"name": "John"}, {"name": "Jane"}]})
-        assert isinstance(obj.authors, RelatedList)
-        assert len(obj.authors) == 2
-        assert isinstance(obj.authors[0], AttrDict)
-        assert obj.authors[0].name == "John"
-
-    def test_simple_init_no_nested_wrap(self):
-        """Basic AttrDict() does not wrap nested values."""
-        obj = AttrDict({"publisher": {"name": "Pub"}})
+    def test_nested_dict_not_auto_wrapped(self):
+        """Nested dicts are NOT auto-wrapped (it's a simple dict subclass)."""
+        obj = AttrDict({"publisher": {"name": "Tech Books", "country": "USA"}})
+        # Nested dict is a plain dict, not AttrDict
         assert isinstance(obj.publisher, dict)
         assert not isinstance(obj.publisher, AttrDict)
 
@@ -97,78 +88,52 @@ class TestAttrDict:
         assert obj1 != obj3
 
     def test_equality_with_dict(self):
-        """AttrDict can be compared with a dict."""
-        obj = AttrDict({"a": 1})
-        # Note: nested wrapping means direct comparison with plain dict may differ
-        # for nested structures, but simple cases should work
-        assert obj._data == {"a": 1}
-
-    def test_to_dict(self):
-        """to_dict() converts back to plain dict recursively."""
-        obj = AttrDict(
-            {
-                "title": "Book",
-                "publisher": {"name": "Pub"},
-                "authors": [{"name": "John"}, {"name": "Jane"}],
-            },
-        )
-        result = obj.to_dict()
-        assert result == {
-            "title": "Book",
-            "publisher": {"name": "Pub"},
-            "authors": [{"name": "John"}, {"name": "Jane"}],
-        }
-        assert isinstance(result, dict)
-        assert isinstance(result["publisher"], dict)
-        assert isinstance(result["authors"], list)
-        assert isinstance(result["authors"][0], dict)
+        """AttrDict equals plain dict with same content."""
+        obj = AttrDict({"a": 1, "b": 2})
+        assert obj == {"a": 1, "b": 2}
 
     def test_setattr(self):
         """Setting attributes works."""
         obj = AttrDict({"a": 1})
         obj.b = 2
         assert obj.b == 2
+        assert obj["b"] == 2  # Also accessible via dict
 
     def test_setitem(self):
         """Setting items works."""
         obj = AttrDict({"a": 1})
         obj["b"] = 2
         assert obj["b"] == 2
+        assert obj.b == 2  # Also accessible via attribute
+
+    def test_delattr(self):
+        """Deleting attributes works."""
+        obj = AttrDict({"a": 1, "b": 2})
+        del obj.a
+        assert "a" not in obj
+        with pytest.raises(AttributeError):
+            del obj.nonexistent
+
+    def test_delitem(self):
+        """Deleting items works."""
+        obj = AttrDict({"a": 1, "b": 2})
+        del obj["a"]
+        assert "a" not in obj
 
     def test_repr(self):
         """repr() returns readable representation."""
         obj = AttrDict({"a": 1})
-        assert "AttrDict" in repr(obj)
+        # Should look like a dict repr
         assert "a" in repr(obj)
+        assert "1" in repr(obj)
 
+    def test_json_serializable(self):
+        """AttrDict can be serialized to JSON."""
+        import json
 
-class TestRelatedList:
-    """Test RelatedList wrapper class."""
-
-    def test_all_returns_self(self):
-        """RelatedList.all() returns self."""
-        lst = RelatedList([1, 2, 3])
-        assert lst.all() is lst
-
-    def test_list_operations(self):
-        """RelatedList supports standard list operations."""
-        lst = RelatedList([1, 2, 3])
-        assert len(lst) == 3
-        assert lst[0] == 1
-        assert list(lst) == [1, 2, 3]
-        assert 2 in lst
-
-    def test_iteration(self):
-        """RelatedList supports iteration."""
-        lst = RelatedList([{"name": "a"}, {"name": "b"}])
-        names = [item["name"] for item in lst]
-        assert names == ["a", "b"]
-
-    def test_all_in_loop(self):
-        """RelatedList.all() works in for loop (Django pattern)."""
-        lst = RelatedList([1, 2, 3])
-        result = list(lst.all())
-        assert result == [1, 2, 3]
+        obj = AttrDict({"a": 1, "b": "test"})
+        result = json.dumps(obj)
+        assert result == '{"a": 1, "b": "test"}'
 
 
 class TestValuesNestedAsAttrDicts:
@@ -181,6 +146,8 @@ class TestValuesNestedAsAttrDicts:
 
         assert len(results) > 0
         assert all(isinstance(r, AttrDict) for r in results)
+        # Also all dicts (since AttrDict is a dict subclass)
+        assert all(isinstance(r, dict) for r in results)
 
     def test_attribute_access_on_result(self, sample_data):
         """Can access fields via attributes."""
@@ -203,25 +170,22 @@ class TestValuesNestedAsAttrDicts:
         assert isinstance(book.publisher.name, str)
 
     def test_prefetch_related_list(self, sample_data):
-        """prefetch_related returns RelatedList."""
+        """prefetch_related returns list of AttrDicts."""
         qs = NestedValuesQuerySet(model=Book)
         results = list(qs.prefetch_related("authors").values_nested(as_attr_dicts=True))
         book = results[0]
 
-        assert isinstance(book.authors, RelatedList)
+        assert isinstance(book.authors, list)
+        assert all(isinstance(a, AttrDict) for a in book.authors)
 
-    def test_prefetch_related_all_method(self, sample_data):
-        """prefetch_related lists support .all() method."""
+    def test_prefetch_related_iteration(self, sample_data):
+        """prefetch_related lists can be iterated directly."""
         qs = NestedValuesQuerySet(model=Book)
         results = list(qs.prefetch_related("authors").values_nested(as_attr_dicts=True))
         book = results[0]
 
-        # Can call .all() like Django's related manager
-        authors = book.authors.all()
-        assert authors is book.authors  # Returns self
-
-        # Can iterate
-        for author in book.authors.all():
+        # Iterate directly (no .all() needed)
+        for author in book.authors:
             assert isinstance(author, AttrDict)
             assert hasattr(author, "name")
 
@@ -231,21 +195,21 @@ class TestValuesNestedAsAttrDicts:
         results = list(qs.prefetch_related("books__publisher").values_nested(as_attr_dicts=True))
         author = results[0]
 
-        assert isinstance(author.books, RelatedList)
-        for book in author.books.all():
+        assert isinstance(author.books, list)
+        for book in author.books:
             assert isinstance(book, AttrDict)
             assert isinstance(book.publisher, AttrDict)
             assert hasattr(book.publisher, "name")
 
     def test_django_pattern_compatibility(self, sample_data):
-        """Code written for Django ORM works with as_attr_dicts=True."""
+        """Iteration works similarly to Django ORM (without .all())."""
         qs = NestedValuesQuerySet(model=Author)
         results = list(qs.prefetch_related("books__chapters").values_nested(as_attr_dicts=True))
 
-        # This pattern should work like Django ORM
+        # This pattern should work
         for author in results:
-            for book in author.books.all():
-                for chapter in book.chapters.all():
+            for book in author.books:
+                for chapter in book.chapters:
                     # Can access attributes
                     _ = chapter.title
                     _ = chapter.number
@@ -269,12 +233,12 @@ class TestValuesNestedAsAttrDicts:
         assert all(isinstance(r, dict) for r in results)
         assert not any(isinstance(r, AttrDict) for r in results)
 
-    def test_to_dict_round_trip(self, sample_data):
-        """Can convert AttrDict back to dict."""
+    def test_attr_dict_equals_plain_dict(self, sample_data):
+        """AttrDict results equal plain dict results."""
         qs = NestedValuesQuerySet(model=Book)
-        results_objects = list(qs.prefetch_related("authors").values_nested(as_attr_dicts=True))
-        results_dicts = list(qs.prefetch_related("authors").values_nested())
+        results_attr = list(qs.prefetch_related("authors").values_nested(as_attr_dicts=True))
+        results_dict = list(qs.prefetch_related("authors").values_nested())
 
-        for obj, expected_dict in zip(results_objects, results_dicts, strict=True):
-            converted = obj.to_dict()
-            assert converted == expected_dict
+        # Results should be equal (AttrDict == dict with same content)
+        for attr_obj, dict_obj in zip(results_attr, results_dict, strict=True):
+            assert attr_obj == dict_obj

@@ -197,14 +197,14 @@ def benchmark_prefetch_values_nested_attr_dicts():
 
 
 def benchmark_select_only_dict():
-    """POC: select_related only, plain dict."""
+    """Benchmark: select_related only, plain dict."""
     qs = NestedValuesQuerySet(model=Book)
     result = list(qs.select_related("publisher").values_nested())
     return result
 
 
-def benchmark_select_only_namespace():
-    """POC: select_related only, SimpleNamespace (direct build)."""
+def benchmark_select_only_attr_dict():
+    """Benchmark: select_related only, AttrDict."""
     qs = NestedValuesQuerySet(model=Book)
     result = list(qs.select_related("publisher").values_nested(as_attr_dicts=True))
     return result
@@ -295,9 +295,9 @@ def main():
     # Benchmark 4: Standard values() (for reference, but loses M2M/reverse FK)
     results.append(run_benchmark("Standard values() (no M2M)", benchmark_values_only))
 
-    # POC: select_related only comparisons
+    # select_related only comparisons (no prefetch)
     results.append(run_benchmark("select_only dict", benchmark_select_only_dict))
-    results.append(run_benchmark("select_only SimpleNamespace", benchmark_select_only_namespace))
+    results.append(run_benchmark("select_only AttrDict", benchmark_select_only_attr_dict))
 
     # Print results
     print(f"\n{'=' * 70}")
