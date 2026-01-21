@@ -37,7 +37,7 @@ def _build_from_klass_info(
     select: list[tuple[Any, ...]],
     container: _ContainerType = dict,
 ) -> dict[str, Any]:
-    """Build a dict (or dict subclass like AttrDict) directly from a row.
+    """Build a dict directly from a row using Django's compiler metadata.
 
     This uses Django's internal compiler metadata to know exactly which
     columns belong to which model, avoiding manual field path parsing.
@@ -46,7 +46,7 @@ def _build_from_klass_info(
         row: A tuple of values from the database row
         klass_info: The klass_info dict from compiler
         select: The compiler.select list
-        container: The dict-like class to use (dict or AttrDict)
+        container: The dict-like class to use for results
 
     Returns:
         A container instance with field names as keys
@@ -75,12 +75,12 @@ def _execute_queryset(
     db: str,
     container: _ContainerType = dict,
 ) -> list[dict[str, Any]]:
-    """Execute a queryset and return results as nested dicts (or AttrDict).
+    """Execute a queryset and return results as nested dicts.
 
     Args:
         queryset: The queryset to execute
         db: Database alias to use
-        container: The dict-like class to use (dict or AttrDict)
+        container: The dict-like class to use for results
 
     Returns:
         List of nested containers, one per row
@@ -113,7 +113,7 @@ def _execute_prefetch(
     Args:
         queryset: The queryset to execute
         db: Database alias to use
-        container: The dict-like class to use (dict or AttrDict)
+        container: The dict-like class to use for results
 
     Returns:
         Tuple of (list of model containers, list of extra column dicts for grouping)
@@ -162,7 +162,7 @@ class NestedValuesIterable(BaseIterable):  # type: ignore[type-arg]
         queryset: NestedValuesQuerySetMixin[Any]
 
     def __iter__(self) -> Iterator[dict[str, Any]]:
-        """Iterate over the queryset, yielding nested dictionaries (or AttrDict)."""
+        """Iterate over the queryset, yielding nested dictionaries."""
         queryset = self.queryset
         db = queryset.db
         prefetch_lookups = getattr(queryset, "_nested_prefetch_lookups", ())
@@ -187,7 +187,7 @@ class NestedValuesIterable(BaseIterable):  # type: ignore[type-arg]
         container: _ContainerType = dict
         pk_name = queryset.model._meta.pk.name
 
-        # Build main results - unified path for both dict and AttrDict
+        # Build main results from database rows
         main_results = [
             _build_from_klass_info(row, klass_info, select, container) for row in compiler.results_iter(results)
         ]
@@ -493,7 +493,7 @@ class NestedValuesQuerySetMixin(_MixinBase[_ModelT_co]):
         }
         related_qs = related_qs.extra(select=extra_select)  # noqa: S610
 
-        # Build directly into container (dict or AttrDict) - no conversion needed
+        # Build directly into container - no conversion needed
         containers, extra_values = _execute_prefetch(related_qs, self.db, container)
         if not containers:
             return {pk: [] for pk in parent_pks}
@@ -557,7 +557,7 @@ class NestedValuesQuerySetMixin(_MixinBase[_ModelT_co]):
         else:
             related_qs = related_model._default_manager.filter(**{f"{fk_field_name}__in": parent_pks})
 
-        # Build directly into container (dict or AttrDict)
+        # Build directly into container
         related_data = _execute_queryset(related_qs, self.db, container)
         if not related_data:
             return {pk: [] for pk in parent_pks}
