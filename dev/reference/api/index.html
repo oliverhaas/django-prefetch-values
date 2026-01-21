@@ -783,17 +783,6 @@
   
 </li>
         
-          <li class="md-nav__item">
-  <a href="#relatedlist" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        RelatedList
-      
-    </span>
-  </a>
-  
-</li>
-        
       </ul>
     </nav>
   
@@ -1131,17 +1120,6 @@
   
 </li>
         
-          <li class="md-nav__item">
-  <a href="#relatedlist" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        RelatedList
-      
-    </span>
-  </a>
-  
-</li>
-        
       </ul>
     </nav>
   
@@ -1324,32 +1302,24 @@
 <a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>    <span class="nb">print</span><span class="p">(</span><span class="n">book</span><span class="o">.</span><span class="n">title</span><span class="p">)</span>           <span class="c1"># Attribute access</span>
 <a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>    <span class="nb">print</span><span class="p">(</span><span class="n">book</span><span class="p">[</span><span class="s2">&quot;title&quot;</span><span class="p">])</span>        <span class="c1"># Dict access still works</span>
 <a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>    <span class="nb">print</span><span class="p">(</span><span class="n">book</span><span class="o">.</span><span class="n">publisher</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>  <span class="c1"># Nested attribute access</span>
-<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>    <span class="k">for</span> <span class="n">author</span> <span class="ow">in</span> <span class="n">book</span><span class="o">.</span><span class="n">authors</span><span class="o">.</span><span class="n">all</span><span class="p">():</span>
-<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a>        <span class="nb">print</span><span class="p">(</span><span class="n">author</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>    <span class="k">for</span> <span class="n">author</span> <span class="ow">in</span> <span class="n">book</span><span class="o">.</span><span class="n">authors</span><span class="p">:</span>
+<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a>        <span class="nb">print</span><span class="p">(</span><span class="n">author</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>      <span class="c1"># Nested lists contain AttrDicts too</span>
 </code></pre></div>
 <h3 id="attrdict">AttrDict<a class="headerlink" href="#attrdict" title="Permanent link">&para;</a></h3>
-<p>A dict wrapper that supports both attribute access (<code>obj.field</code>) and dict access (<code>obj["field"]</code>).</p>
+<p>A dict subclass that supports both attribute access (<code>obj.field</code>) and dict access (<code>obj["field"]</code>).</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_nested_values</span><span class="w"> </span><span class="kn">import</span> <span class="n">AttrDict</span>
 <a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>
-<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="n">obj</span> <span class="o">=</span> <span class="n">AttrDict</span><span class="p">({</span><span class="s2">&quot;title&quot;</span><span class="p">:</span> <span class="s2">&quot;Django&quot;</span><span class="p">,</span> <span class="s2">&quot;publisher&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;Pub&quot;</span><span class="p">}})</span>
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="n">obj</span> <span class="o">=</span> <span class="n">AttrDict</span><span class="p">({</span><span class="s2">&quot;title&quot;</span><span class="p">:</span> <span class="s2">&quot;Django&quot;</span><span class="p">})</span>
 <a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="n">obj</span><span class="o">.</span><span class="n">title</span>           <span class="c1"># &quot;Django&quot;</span>
 <a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="n">obj</span><span class="p">[</span><span class="s2">&quot;title&quot;</span><span class="p">]</span>        <span class="c1"># &quot;Django&quot;</span>
-<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a><span class="n">obj</span><span class="o">.</span><span class="n">publisher</span><span class="o">.</span><span class="n">name</span>  <span class="c1"># &quot;Pub&quot; (nested dicts are also wrapped)</span>
+<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a><span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span>  <span class="c1"># True - it&#39;s a real dict subclass</span>
 </code></pre></div>
-<p><strong>Methods:</strong></p>
+<p>Since <code>AttrDict</code> inherits from <code>dict</code>, all standard dict operations work:</p>
 <ul>
-<li><code>to_dict()</code> - Convert back to a plain dict (recursively unwraps nested AttrDicts)</li>
-<li><code>keys()</code>, <code>values()</code>, <code>items()</code>, <code>get()</code> - Standard dict methods</li>
+<li><code>keys()</code>, <code>values()</code>, <code>items()</code>, <code>get()</code>, etc.</li>
+<li>JSON serialization works directly</li>
+<li>Can be passed anywhere a dict is expected</li>
 </ul>
-<h3 id="relatedlist">RelatedList<a class="headerlink" href="#relatedlist" title="Permanent link">&para;</a></h3>
-<p>A list wrapper for related object collections that supports <code>.all()</code> for Django-like iteration:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="k">for</span> <span class="n">book</span> <span class="ow">in</span> <span class="n">books</span><span class="p">:</span>
-<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>    <span class="c1"># Both work the same</span>
-<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>    <span class="k">for</span> <span class="n">author</span> <span class="ow">in</span> <span class="n">book</span><span class="o">.</span><span class="n">authors</span><span class="p">:</span>
-<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a>        <span class="nb">print</span><span class="p">(</span><span class="n">author</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
-<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a>    <span class="k">for</span> <span class="n">author</span> <span class="ow">in</span> <span class="n">book</span><span class="o">.</span><span class="n">authors</span><span class="o">.</span><span class="n">all</span><span class="p">():</span>
-<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a>        <span class="nb">print</span><span class="p">(</span><span class="n">author</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
-</code></pre></div>
 
 
 
